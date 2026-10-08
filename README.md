@@ -57,7 +57,7 @@ Write it to a USB stick with [balenaEtcher](https://etcher.balena.io/), Rufus (D
 | | Minimum | Recommended |
 |---|---|---|
 | CPU | 64-bit (amd64) | 4+ cores |
-| RAM | 4 GB | 8 GB+ (16 GB to use Guardian AI) |
+| RAM | 4 GB | 8 - 16 GB to use Guardian AI |
 | Disk | 30 GB | 60 GB+ (SSD) |
 | Firmware | BIOS or UEFI | UEFI with Secure Boot |
 
