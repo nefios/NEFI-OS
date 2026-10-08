@@ -1,0 +1,7 @@
+PRETTY_NAME="NEFI OS 0.2"
+NAME="NEFI OS"
+VERSION_ID="0.2"
+VERSION="0.2 (trixie)"
+VERSION_CODENAME=trixie
+ID=nefi
+ID_LIKE=debian

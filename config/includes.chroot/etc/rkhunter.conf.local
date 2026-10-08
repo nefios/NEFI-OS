@@ -1,0 +1,3 @@
+# NEFI OS - falsi positivi noti su Debian 13
+SCRIPTWHITELIST=/usr/bin/lwp-request
+ALLOWHIDDENFILE=/etc/.updated

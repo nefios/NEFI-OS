@@ -1,0 +1,8 @@
+#!/bin/sh
+set -e
+# Nasconde i task di Debian (GNOME, Xfce, server...): restano solo quelli NEFI
+if [ "$1" = "install" ] || [ "$1" = "upgrade" ]; then
+  dpkg-divert --package nefi-tasks --rename \
+    --divert /usr/share/tasksel/descs/debian-tasks.desc.nefi-hidden \
+    --add /usr/share/tasksel/descs/debian-tasks.desc
+fi

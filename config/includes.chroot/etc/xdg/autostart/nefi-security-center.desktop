@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NEFI Security Center
+GenericName=Blue Team Dashboard
+Comment=Network Event Forensics Intelligence — Centro di sicurezza
+Exec=nefi-security-center
+Icon=nefi-security-center
+Terminal=false
+Categories=System;Security;Monitor;
+Keywords=security;blue team;forensics;monitoring;
+StartupNotify=true

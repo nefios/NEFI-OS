@@ -1,0 +1,2 @@
+# NEFI USB Guardian - una volta per chiavetta USB (disco intero), avviato fuori da udev
+ACTION=="add", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", ENV{ID_BUS}=="usb", RUN+="/usr/bin/systemd-run --no-block --collect --unit=nefi-usb-guardian-%k /opt/nefi/usb-guardian/notify.sh %k"

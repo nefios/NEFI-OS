@@ -1,0 +1,6 @@
+[KDE]
+LookAndFeelPackage=org.nefi.desktop
+widgetStyle=Breeze
+
+[General]
+ColorScheme=BreezeDark

@@ -1,0 +1,10 @@
+Package: nefi-branding
+Version: 0.2+202610071246
+Architecture: all
+Installed-Size: 1096
+Section: misc
+Priority: optional
+Maintainer: NEFI OS Project <emanuel2005gabriel@gmail.com>
+Depends: base-files
+Description: NEFI OS branding
+ System name (os-release) and GRUB background for NEFI OS.

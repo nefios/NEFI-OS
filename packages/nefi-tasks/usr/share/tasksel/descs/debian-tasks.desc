@@ -1,0 +1,202 @@
+Task: nefi-all
+Relevance: 5
+Section: user
+Description: Select all -- every NEFI collection (desktop + tools + DFIR + AI + SSH)
+ Select all -- every NEFI collection (desktop + tools + DFIR + AI + SSH)
+Packages: list
+ nefi-desktop
+ kde-plasma-desktop
+ sddm
+ konsole
+ dolphin
+ kate
+ firefox-esr
+ plasma-nm
+ powerdevil
+ plasma-widgets-addons
+ plymouth
+ plymouth-themes
+ fonts-noto-color-emoji
+ nefi-security-center
+ python3-pyqt6
+ python3-pyqt6.qtsvg
+ python3-psutil
+ python3-requests
+ python3-twisted
+ apparmor
+ apparmor-utils
+ apparmor-profiles
+ auditd
+ audispd-plugins
+ nftables
+ aide
+ aide-common
+ mokutil
+ polkitd
+ pkexec
+ udisks2
+ firejail
+ keepassxc
+ snapper
+ btrfs-progs
+ netcat-openbsd
+ suricata
+ yara
+ clamav
+ clamav-daemon
+ chkrootkit
+ rkhunter
+ lynis
+ nmap
+ tcpdump
+ net-tools
+ dc3dd
+ foremost
+ binwalk
+ sleuthkit
+ autopsy
+ testdisk
+ gddrescue
+ ewf-tools
+ wireshark
+ tshark
+ nefi-ollama
+ openssh-server
+
+Task: nefi-desktop
+Relevance: 10
+Section: user
+Description: Desktop environment [selecting this item has no effect]
+ Desktop environment [selecting this item has no effect]
+Packages: list
+ base-files
+
+Task: nefi-desktop-kde
+Parent: nefi-desktop
+Relevance: 11
+Section: user
+Description: KDE Plasma (NEFI OS desktop)
+ KDE Plasma (NEFI OS desktop)
+Packages: list
+ nefi-desktop
+ kde-plasma-desktop
+ sddm
+ konsole
+ dolphin
+ kate
+ firefox-esr
+ plasma-nm
+ powerdevil
+ plasma-widgets-addons
+ plymouth
+ plymouth-themes
+ fonts-noto-color-emoji
+
+Task: nefi-tools
+Relevance: 20
+Section: user
+Description: Collection of tools [selecting this item has no effect]
+ Collection of tools [selecting this item has no effect]
+Packages: list
+ base-files
+
+Task: nefi-core
+Parent: nefi-tools
+Relevance: 21
+Section: user
+Description: core -- NEFI Security Center and system hardening
+ core -- NEFI Security Center and system hardening
+Packages: list
+ nefi-security-center
+ python3-pyqt6
+ python3-pyqt6.qtsvg
+ python3-psutil
+ python3-requests
+ python3-twisted
+ apparmor
+ apparmor-utils
+ apparmor-profiles
+ auditd
+ audispd-plugins
+ nftables
+ aide
+ aide-common
+ mokutil
+ polkitd
+ pkexec
+ udisks2
+ firejail
+ keepassxc
+ snapper
+ btrfs-progs
+ netcat-openbsd
+
+Task: nefi-default
+Parent: nefi-tools
+Relevance: 22
+Section: user
+Description: default -- Blue Team tools: IDS and antivirus and audit scanners
+ default -- Blue Team tools: IDS and antivirus and audit scanners
+Packages: list
+ suricata
+ yara
+ clamav
+ clamav-daemon
+ chkrootkit
+ rkhunter
+ lynis
+ nmap
+ tcpdump
+ net-tools
+
+Task: nefi-large
+Parent: nefi-tools
+Relevance: 23
+Section: user
+Description: large -- default tools plus DFIR and forensics
+ large -- default tools plus DFIR and forensics
+Packages: list
+ suricata
+ yara
+ clamav
+ clamav-daemon
+ chkrootkit
+ rkhunter
+ lynis
+ nmap
+ tcpdump
+ net-tools
+ dc3dd
+ foremost
+ binwalk
+ sleuthkit
+ autopsy
+ testdisk
+ gddrescue
+ ewf-tools
+ wireshark
+ tshark
+
+Task: nefi-ai
+Parent: nefi-tools
+Relevance: 24
+Section: user
+Description: ai -- Guardian AI assistant (Ollama engine - about 2 GB)
+ ai -- Guardian AI assistant (Ollama engine - about 2 GB)
+Packages: list
+ nefi-ollama
+
+Task: nefi-ssh
+Relevance: 30
+Section: user
+Description: SSH server
+ SSH server
+Packages: list
+ openssh-server
+
+Task: nefi-standard
+Relevance: 40
+Section: user
+Description: standard system utilities
+ standard system utilities
+Packages: standard

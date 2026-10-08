@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+echo "[NEFI] Configurazione Ollama..."
+systemctl enable ollama 2>/dev/null || true
+echo "[NEFI] Ollama configurato."
+
+# Assicura permessi di esecuzione
+chmod +x /usr/local/bin/ollama
+chmod +x /usr/local/bin/nefi-ollama-setup

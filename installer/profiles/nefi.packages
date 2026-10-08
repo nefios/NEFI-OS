@@ -1,0 +1,11 @@
+# Sempre installati (prima della Scelta del software)
+nefi-tasks
+nefi-branding
+python3
+python3-pip
+curl
+wget
+git
+htop
+util-linux
+iproute2

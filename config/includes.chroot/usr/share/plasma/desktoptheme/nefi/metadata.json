@@ -1,0 +1,11 @@
+{
+    "KPlugin": {
+        "Id": "nefi",
+        "Name": "NEFI",
+        "Description": "NEFI OS Plasma theme (rounded panels, Breeze fallback)",
+        "Authors": [{ "Name": "NEFI OS Project" }],
+        "License": "GPL-2.0+",
+        "Version": "1.0"
+    },
+    "X-Plasma-API-Minimum-Version": "6.0"
+}

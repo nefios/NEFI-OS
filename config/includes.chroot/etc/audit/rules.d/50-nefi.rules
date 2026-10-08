@@ -1,0 +1,20 @@
+## NEFI OS - regole di audit di base
+-i
+-w /etc/passwd -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/sudoers -p wa -k privilege
+-w /etc/sudoers.d/ -p wa -k privilege
+-w /usr/bin/sudo -p x -k privilege
+-w /usr/bin/pkexec -p x -k privilege
+-w /etc/ssh/ -p wa -k sshd
+-w /etc/crontab -p wa -k cron
+-w /etc/cron.d/ -p wa -k cron
+-w /etc/systemd/system/ -p wa -k systemd
+-w /etc/nftables.conf -p wa -k firewall
+-w /opt/nefi/ -p wa -k nefi
+-w /usr/lib/nefi/ -p wa -k nefi
+-w /etc/localtime -p wa -k time
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -k modules
+-a always,exit -F arch=b64 -S clock_settime,settimeofday,adjtimex -k time

@@ -1,0 +1,28 @@
+#!/usr/bin/env python3
+"""NEFI Security Center — launcher"""
+import sys
+sys.path.insert(0, "/usr/lib/nefi/modules")
+
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtGui import QIcon
+
+
+def main():
+    app = QApplication(sys.argv)
+    app.setApplicationName("NEFI Security Center")
+    app.setOrganizationName("NEFI OS")
+    app.setDesktopFileName("nefi-security-center")
+    app.setWindowIcon(QIcon.fromTheme("nefi-security-center",
+                      QIcon("/usr/share/nefi/logo-white.png")))
+
+    from nefi_theme import GLOBAL_QSS
+    app.setStyleSheet(GLOBAL_QSS)
+
+    from main_window import MainWindow
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

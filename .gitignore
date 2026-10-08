@@ -1,0 +1,27 @@
+# Prodotti di live-build (si rigenerano)
+chroot/
+binary/
+cache/
+.build/
+chroot.*
+binary.*
+live-image-*
+*.iso
+*.part*
+*.log
+wget-log*
+# Ollama (2 GB): si scarica dal sito ufficiale, non va su Git
+config/includes.chroot/usr/local/bin/ollama
+config/includes.chroot/usr/local/lib/ollama/
+# Installer e pacchetti (si rigenerano con installer/build.sh)
+installer/tmp/
+installer/images/
+packages/out/
+packages/nefi-security-center/
+packages/nefi-desktop/
+packages/nefi-ollama/
+__pycache__/
+*.pyc
+# File di lavoro della build live e backup locali
+/nefi-os-amd64.*
+backup/

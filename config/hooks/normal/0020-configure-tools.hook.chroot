@@ -1,0 +1,45 @@
+#!/bin/bash
+set -e
+
+echo "[NEFI] Configurazione tool Blue Team..."
+
+# Suricata — abilita servizio
+systemctl enable suricata 2>/dev/null || true
+
+# ClamAV — aggiorna database
+systemctl enable clamav-freshclam 2>/dev/null || true
+systemctl enable clamav-daemon 2>/dev/null || true
+
+# Zeek — configurazione base
+if [ -f /etc/zeek/node.cfg ]; then
+    sed -i 's/interface=eth0/interface=eth0/' /etc/zeek/node.cfg
+fi
+
+# osquery — abilita servizio
+systemctl enable osqueryd 2>/dev/null || true
+
+# auditd — regole base NEFI
+cat > /etc/audit/rules.d/nefi.rules << 'AUDIT'
+# NEFI OS — Regole audit base
+
+# Modifiche file critici
+-w /etc/passwd -p wa -k identity
+-w /etc/group -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/sudoers -p wa -k sudoers
+
+# Esecuzioni privilegiate
+-a always,exit -F arch=b64 -S execve -F euid=0 -k root_exec
+
+# Connessioni di rete
+-a always,exit -F arch=b64 -S connect -k network_connect
+
+# Modifiche firewall
+-w /etc/nftables.conf -p wa -k firewall
+
+# Caricamento moduli kernel
+-w /sbin/insmod -p x -k modules
+-w /sbin/rmmod -p x -k modules
+AUDIT
+
+echo "[NEFI] Tool Blue Team configurati."

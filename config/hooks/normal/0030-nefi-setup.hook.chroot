@@ -1,0 +1,42 @@
+#!/bin/bash
+set -e
+
+echo "[NEFI] Final system configuration..."
+
+echo "nefiOS" > /etc/hostname
+
+cat > /etc/hosts << 'HOSTS'
+127.0.0.1   localhost
+127.0.1.1   nefiOS
+::1         localhost ip6-localhost ip6-loopback
+HOSTS
+
+cat > /etc/profile.d/nefi-welcome.sh << 'WELCOME'
+#!/bin/bash
+echo ""
+echo "  ███╗   ██╗███████╗███████╗██╗     ██████╗ ███████╗"
+echo "  ████╗  ██║██╔════╝██╔════╝██║    ██╔═══██╗██╔════╝"
+echo "  ██╔██╗ ██║█████╗  █████╗  ██║    ██║   ██║███████╗"
+echo "  ██║╚██╗██║██╔══╝  ██╔══╝  ██║    ██║   ██║╚════██║"
+echo "  ██║ ╚████║███████╗██║     ██║    ╚██████╔╝███████║"
+echo "  ╚═╝  ╚═══╝╚══════╝╚═╝     ╚═╝     ╚═════╝ ╚══════╝"
+echo ""
+echo "  Network Event Forensics Intelligence"
+echo "  Blue Team Edition — Defensive Security"
+echo ""
+WELCOME
+
+chmod +x /etc/profile.d/nefi-welcome.sh
+
+chmod +x /usr/bin/nefi-security-center
+
+mkdir -p /var/log/nefi
+chmod 755 /var/log/nefi
+
+echo "[NEFI] Final configuration completed."
+
+# Enable AIDE permissions fix service
+systemctl enable nefi-aide-perms 2>/dev/null || true
+
+# Refresh icon cache for NEFI icons
+gtk-update-icon-cache -f /usr/share/icons/hicolor 2>/dev/null || true

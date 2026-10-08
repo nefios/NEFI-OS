@@ -1,0 +1,12 @@
+{
+  "KPlugin": {
+    "Id": "NEFI",
+    "Name": "NEFI OS",
+    "Authors": [
+      {
+        "Name": "NEFI OS Project"
+      }
+    ],
+    "License": "CC-BY-SA-4.0"
+  }
+}

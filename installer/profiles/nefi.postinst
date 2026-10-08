@@ -1,0 +1,3 @@
+#!/bin/sh
+# Eseguito dentro il sistema installato, alla fine dell'installazione
+echo "NEFI OS 0.2" > /etc/nefi-version

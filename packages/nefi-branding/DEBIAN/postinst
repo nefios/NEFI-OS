@@ -1,0 +1,6 @@
+#!/bin/sh
+set -e
+# Durante l'installazione GRUB non c'e' ancora: lo configurera' grub-installer
+if [ "$1" = configure ] && [ -x /usr/sbin/update-grub ] && [ -e /boot/grub/grub.cfg ]; then
+  update-grub || true
+fi

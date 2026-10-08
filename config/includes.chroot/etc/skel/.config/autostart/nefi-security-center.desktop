@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=NEFI Security Center
+Exec=nefi-security-center
+Icon=nefi-security-center
+Terminal=false
+X-KDE-autostart-phase=2

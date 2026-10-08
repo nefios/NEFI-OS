@@ -1,0 +1,31 @@
+#!/bin/bash
+echo "[NEFI] Applying branding..."
+
+# Identità del sistema: NEFI OS, compatibile Debian
+cat > /usr/lib/os-release << 'OSR'
+PRETTY_NAME="NEFI OS 0.1 (Blue Team Edition)"
+NAME="NEFI OS"
+VERSION_ID="0.1"
+VERSION="0.1 (Blue Team Edition)"
+VERSION_CODENAME=trixie
+ID=nefi
+ID_LIKE=debian
+LOGO=nefi-os
+HOME_URL="https://github.com/nefi-os"
+SUPPORT_URL="https://github.com/nefi-os"
+BUG_REPORT_URL="https://github.com/nefi-os"
+OSR
+ln -sf ../usr/lib/os-release /etc/os-release
+
+echo 'NEFI OS 0.1 \n \l' > /etc/issue
+echo 'NEFI OS 0.1' > /etc/issue.net
+
+# Permessi corretti per l'avatar
+chmod 700 /var/lib/AccountsService/users 2>/dev/null || true
+chmod 644 /var/lib/AccountsService/icons/nefi 2>/dev/null || true
+
+# Tema di avvio NEFI e rigenerazione initramfs
+plymouth-set-default-theme nefi 2>/dev/null || true
+update-initramfs -u -k all 2>/dev/null || true
+
+echo "[NEFI] Branding applied."

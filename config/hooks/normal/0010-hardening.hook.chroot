@@ -1,0 +1,59 @@
+#!/bin/bash
+set -e
+
+echo "[NEFI] Configurazione hardening base..."
+
+# Abilita AppArmor
+systemctl enable apparmor 2>/dev/null || true
+
+# Abilita auditd
+systemctl enable auditd 2>/dev/null || true
+
+# Parametri kernel sicuri
+cat > /etc/sysctl.d/99-nefi-hardening.conf << 'SYSCTL'
+# Protezione rete
+net.ipv4.conf.all.rp_filter = 1
+net.ipv4.conf.default.rp_filter = 1
+net.ipv4.icmp_echo_ignore_broadcasts = 1
+net.ipv4.conf.all.accept_redirects = 0
+net.ipv4.conf.all.send_redirects = 0
+net.ipv4.conf.all.accept_source_route = 0
+net.ipv6.conf.all.accept_redirects = 0
+
+# Protezione memoria
+kernel.randomize_va_space = 2
+kernel.dmesg_restrict = 1
+kernel.kptr_restrict = 2
+fs.protected_hardlinks = 1
+fs.protected_symlinks = 1
+
+# Protezione processi
+kernel.yama.ptrace_scope = 1
+SYSCTL
+
+# Regole nftables base
+cat > /etc/nftables.conf << 'NFT'
+#!/usr/sbin/nft -f
+flush ruleset
+
+table inet filter {
+    chain input {
+        type filter hook input priority 0; policy drop;
+        ct state established,related accept
+        ct state invalid drop
+        iif lo accept
+        ip protocol icmp accept
+        tcp dport 22 accept
+    }
+    chain forward {
+        type filter hook forward priority 0; policy drop;
+    }
+    chain output {
+        type filter hook output priority 0; policy accept;
+    }
+}
+NFT
+
+systemctl enable nftables 2>/dev/null || true
+
+echo "[NEFI] Hardening completato."

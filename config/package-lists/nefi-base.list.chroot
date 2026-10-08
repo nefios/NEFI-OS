@@ -1,0 +1,105 @@
+# Desktop KDE Plasma
+kde-plasma-desktop
+sddm
+konsole
+dolphin
+kate
+firefox-esr
+plasma-nm
+powerdevil
+kde-spectacle
+
+# Hardening
+apparmor
+apparmor-utils
+apparmor-profiles
+auditd
+audispd-plugins
+nftables
+ufw
+
+# Blue Team tools
+suricata
+yara
+clamav
+clamav-daemon
+chkrootkit
+rkhunter
+
+# DFIR
+dc3dd
+foremost
+binwalk
+
+# Python per NEFI Security Center
+python3
+python3-pip
+python3-pyqt6
+python3-psutil
+python3-requests
+
+# Utilità sistema
+curl
+wget
+git
+htop
+net-tools
+nmap
+tcpdump
+
+# Security Score dependencies
+mokutil
+# PolicyKit per privilegi GUI 
+polkitd 
+pkexec 
+
+# PolicyKit (rinominato in Trixie)
+pkexec
+polkitd
+
+# USB Guardian dependencies
+udisks2
+
+# Integrity Control
+aide
+aide-common
+
+# Forensics dependencies
+util-linux
+net-tools
+iproute2
+
+# Forensics dependencies
+util-linux
+net-tools
+iproute2
+
+# Vulnerability Scanner
+lynis
+
+# Password Manager
+keepassxc
+
+# Sandbox
+firejail
+
+# Snapshot Manager
+snapper
+btrfs-progs
+
+# Honeypot
+python3-twisted
+netcat-openbsd
+
+# Emoji font (icons in NEFI Security Center)
+fonts-noto-color-emoji
+
+# Boot splash
+plymouth
+plymouth-themes
+
+# Plasma widgets (weather)
+plasma-widgets-addons
+
+# NEFI Security Center v2 (SVG icons)
+python3-pyqt6.qtsvg

@@ -1,0 +1,50 @@
+// NEFI OS — Plymouth boot theme
+Window.SetBackgroundTopColor(0.055, 0.086, 0.047);
+Window.SetBackgroundBottomColor(0.027, 0.043, 0.024);
+
+center_x = Window.GetX() + Window.GetWidth() / 2;
+center_y = Window.GetY() + Window.GetHeight() / 2;
+
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.y = center_y - logo.image.GetHeight() / 2 - 40;
+logo.sprite.SetPosition(center_x - logo.image.GetWidth() / 2, logo.y, 10);
+
+title.image = Image.Text("NEFI OS", 0.88, 0.90, 0.87, 1, "Sans Bold 18");
+title.sprite = Sprite(title.image);
+title.sprite.SetPosition(center_x - title.image.GetWidth() / 2, logo.y + logo.image.GetHeight() + 16, 10);
+
+bar_w = 220;
+bar_x = center_x - bar_w / 2;
+bar_y = logo.y + logo.image.GetHeight() + 60;
+
+track.sprite = Sprite(Image("track.png").Scale(bar_w, 4));
+track.sprite.SetPosition(bar_x, bar_y, 10);
+bar.image = Image("bar.png");
+bar.sprite = Sprite();
+bar.sprite.SetPosition(bar_x, bar_y, 11);
+
+fun progress_callback(duration, progress) {
+    w = Math.Int(bar_w * progress);
+    if (w < 1) w = 1;
+    bar.sprite.SetImage(bar.image.Scale(w, 4));
+}
+Plymouth.SetBootProgressFunction(progress_callback);
+
+// Richiesta password per dischi cifrati (LUKS)
+fun display_password_callback(prompt, bullets) {
+    global.prompt_sprite = Sprite(Image.Text(prompt, 0.88, 0.90, 0.87));
+    global.prompt_sprite.SetPosition(center_x - global.prompt_sprite.GetImage().GetWidth() / 2, bar_y + 30, 20);
+    stars = "";
+    for (i = 0; i < bullets; i++) stars += "*";
+    global.bullets_sprite = Sprite(Image.Text(stars, 0.48, 0.79, 0.26));
+    global.bullets_sprite.SetPosition(center_x - global.bullets_sprite.GetImage().GetWidth() / 2, bar_y + 56, 20);
+}
+
+fun display_normal_callback() {
+    global.prompt_sprite = NULL;
+    global.bullets_sprite = NULL;
+}
+
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+Plymouth.SetDisplayNormalFunction(display_normal_callback);

@@ -1,0 +1,11 @@
+Package: nefi-tasks
+Version: 0.2+202610071246
+Architecture: all
+Installed-Size: 24
+Maintainer: NEFI OS Project <emanuel2005gabriel@gmail.com>
+Depends: tasksel
+Section: admin
+Priority: optional
+Description: NEFI OS installer tasks
+ Task definitions shown in the "Software selection" step of the
+ NEFI OS installer: desktop and Blue Team tool collections.

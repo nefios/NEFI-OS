@@ -1,0 +1,12 @@
+{
+    "KPackageStructure": "Plasma/LookAndFeel",
+    "KPlugin": {
+        "Id": "org.nefi.desktop",
+        "Name": "NEFI OS",
+        "Description": "NEFI OS default desktop layout",
+        "Authors": [{ "Name": "NEFI OS Project" }],
+        "License": "GPL-2.0+",
+        "Version": "1.0"
+    },
+    "X-Plasma-APIVersion": "2"
+}

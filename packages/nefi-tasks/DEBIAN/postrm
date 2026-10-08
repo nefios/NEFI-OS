@@ -1,0 +1,7 @@
+#!/bin/sh
+set -e
+if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
+  dpkg-divert --package nefi-tasks --rename \
+    --divert /usr/share/tasksel/descs/debian-tasks.desc.nefi-hidden \
+    --remove /usr/share/tasksel/descs/debian-tasks.desc || true
+fi

@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=NEFI OS
+Description=NEFI OS boot splash
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/nefi
+ScriptFile=/usr/share/plymouth/themes/nefi/nefi.script

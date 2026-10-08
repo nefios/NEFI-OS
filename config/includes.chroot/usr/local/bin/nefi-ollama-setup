@@ -1,0 +1,7 @@
+#!/bin/bash
+# Avvia Ollama e scarica il modello se non presente
+systemctl start ollama
+sleep 3
+if ! ollama list | grep -q mistral; then
+    ollama pull mistral
+fi

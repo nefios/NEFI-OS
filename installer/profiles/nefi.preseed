@@ -1,0 +1,20 @@
+# Nome macchina proposto (l'utente puo' cambiarlo)
+d-i netcfg/get_hostname string nefios
+d-i netcfg/get_domain string local
+# Repository completi sul sistema installato
+d-i apt-setup/contrib boolean true
+d-i apt-setup/non-free boolean true
+d-i apt-setup/non-free-firmware boolean true
+popularity-contest popularity-contest/participate boolean false
+# Scelta del software: predefiniti NEFI, schermata visibile (seen false)
+tasksel tasksel/first multiselect nefi-desktop-kde, nefi-core, nefi-default, nefi-ai, nefi-standard
+tasksel tasksel/first seen false
+# Aggiornamenti di sicurezza automatici, senza chiederlo all'utente
+d-i pkgsel/update-policy select unattended-upgrades
+# GRUB anche nel percorso di riserva EFI: avvio sicuro anche con firmware difettosi
+d-i grub-installer/force-efi-extra-removable boolean true
+# Niente password di root: il primo utente e' amministratore con sudo
+d-i passwd/root-login boolean false
+# Server di posta (exim4) solo locale: nessuna porta 25 aperta sulla rete
+exim4-config exim4/dc_eximconfig_configtype select local delivery only; not on a network
+exim4-config exim4/dc_local_interfaces string 127.0.0.1 ; ::1

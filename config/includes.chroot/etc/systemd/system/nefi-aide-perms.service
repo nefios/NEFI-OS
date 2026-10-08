@@ -1,0 +1,11 @@
+[Unit]
+Description=NEFI — Fix AIDE database permissions
+After=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'chmod 755 /var/lib/aide/ 2>/dev/null; chmod 644 /var/lib/aide/aide.db 2>/dev/null; true'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
