@@ -70,7 +70,7 @@ Build host: Debian 13 (a VM with 8 GB RAM and ~100 GB free disk is fine).
 ```bash
 sudo apt install live-build simple-cdd debian-cd reprepro xorriso python3-pil dpkg-dev
 # simple-cdd >= 0.6.10 is required for trixie (0.6.9 tries to fetch i386 installer images)
-git clone https://github.com/nefios/nefi-os.git ~/nefi-os
+git clone https://github.com/nefios/NEFI-OS.git ~/nefi-os
 # Ollama is not stored in Git: download the official Linux amd64 release and place
 #   bin/ollama  -> config/includes.chroot/usr/local/bin/ollama
 #   lib/ollama/ -> config/includes.chroot/usr/local/lib/ollama/
