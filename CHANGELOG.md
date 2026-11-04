@@ -23,6 +23,7 @@ Full release notes: [docs/release-notes-0.3.md](docs/release-notes-0.3.md).
 - Two-column menus in the Security Center for sections with many pages.
 
 ### Changed
+- New release signing key `0CC0 887C BCC8 ED05 E308  FBBA ECF8 8C1D 9133 66D3`; the 0.2 key is kept in `NEFI-OS-RELEASE-KEY-0.2.asc`.
 - Firewall closed inbound by default; SSH opened only when installed; per-service rules in `/etc/nefi/firewall.d/`.
 - Incident Response and Zero Trust use their own nftables tables and restore the base firewall correctly.
 - KDE Connect and Avahi no longer exposed on the network.

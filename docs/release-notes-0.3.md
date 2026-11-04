@@ -70,3 +70,8 @@ gpg --import NEFI-OS-RELEASE-KEY.asc
 gpg --verify SHA256SUMS.asc SHA256SUMS
 sha256sum -c SHA256SUMS --ignore-missing
 ```
+
+> **Signing key changed in 0.3.** Releases from 0.3 on are signed with the new key
+> `0CC0 887C BCC8 ED05 E308  FBBA ECF8 8C1D 9133 66D3` (`NEFI-OS-RELEASE-KEY.asc`).
+> The 0.2 key `C551 EF07 CF10 BB11 0518  B0D4 D61F 20E2 7D01 0936` is kept in `NEFI-OS-RELEASE-KEY-0.2.asc`
+> to verify the 0.2 release: it is not compromised, it is simply no longer used.
