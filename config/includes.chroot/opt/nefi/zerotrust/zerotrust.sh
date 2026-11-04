@@ -23,12 +23,12 @@ case "$1" in
 
         # ── 1. Micro-segmentation (default-deny in/out) ──
         echo "[NEFI-ZT] Applying network micro-segmentation..."
-        nft list ruleset > "$STATE_DIR/nftables-backup.conf" 2>/dev/null || true
-        nft flush ruleset
+        # tabella separata: il firewall di base resta com'e'
+        nft delete table inet nefi_zt 2>/dev/null || true
         nft -f - << 'NFT'
 table inet nefi_zt {
     chain input {
-        type filter hook input priority 0; policy drop;
+        type filter hook input priority -5; policy drop;
         iif lo accept
         ct state established,related accept
         ct state invalid drop
@@ -36,7 +36,7 @@ table inet nefi_zt {
         log prefix "NEFI-ZT-IN-DROP " limit rate 5/minute
     }
     chain output {
-        type filter hook output priority 0; policy drop;
+        type filter hook output priority -5; policy drop;
         oif lo accept
         ct state established,related accept
         udp dport { 53, 67, 123 } accept
@@ -44,7 +44,7 @@ table inet nefi_zt {
         log prefix "NEFI-ZT-OUT-DROP " limit rate 5/minute
     }
     chain forward {
-        type filter hook forward priority 0; policy drop;
+        type filter hook forward priority -5; policy drop;
     }
 }
 NFT
@@ -62,7 +62,7 @@ NFT
 
         # ── 3. AppArmor enforce ──
         echo "[NEFI-ZT] Enforcing AppArmor profiles..."
-        aa-enforce /etc/apparmor.d/* >/dev/null 2>&1 || echo "[NEFI-ZT] AppArmor not available (normal in live mode)"
+        bash /opt/nefi/hardening/apparmor-mode.sh enforce "$STATE_DIR/apparmor-enforced.list"
 
         # ── 4. Restrict ptrace to admin only ──
         PREV_PTRACE=$(sysctl -n kernel.yama.ptrace_scope 2>/dev/null || echo 1)
@@ -88,13 +88,12 @@ NFT
 
     deactivate)
         echo "[NEFI-ZT] Deactivating Zero Trust Mode..."
-        nft flush ruleset
-        if [ -s "$STATE_DIR/nftables-backup.conf" ]; then
-            nft -f "$STATE_DIR/nftables-backup.conf" && echo "[NEFI-ZT] Firewall rules restored"
-        else
-            systemctl restart nftables 2>/dev/null || true
-            echo "[NEFI-ZT] Firewall reset to default"
+        nft delete table inet nefi_zt 2>/dev/null || true
+        rm -f "$STATE_DIR/nftables-backup.conf"
+        if ! nft list table inet filter > /dev/null 2>&1; then
+            nft -f /etc/nftables.conf 2>/dev/null || systemctl restart nftables 2>/dev/null || true
         fi
+        echo "[NEFI-ZT] Micro-segmentation removed — base firewall active"
 
         mountpoint -q /tmp && mount -o remount,exec /tmp 2>/dev/null
         mount -o remount,exec /dev/shm 2>/dev/null
@@ -102,6 +101,9 @@ NFT
 
         PREV=$(grep '^PREV_PTRACE=' "$STATE_FILE" 2>/dev/null | cut -d= -f2)
         sysctl -w kernel.yama.ptrace_scope="${PREV:-1}" >/dev/null 2>&1 || true
+
+        bash /opt/nefi/hardening/apparmor-mode.sh restore "$STATE_DIR/apparmor-enforced.list"
+        echo "[NEFI-ZT] AppArmor profiles restored"
 
         rm -f "$SUDOERS_FILE"
         echo "ZT_ACTIVE=false" > "$STATE_FILE"
@@ -111,7 +113,7 @@ NFT
 
     status)
         grep -q "ZT_ACTIVE=true" "$STATE_FILE" 2>/dev/null && echo "ZT_ACTIVE=true" || echo "ZT_ACTIVE=false"
-        grep -q "NET_SEGMENTATION=true" "$STATE_FILE" 2>/dev/null && grep -q "ZT_ACTIVE=true" "$STATE_FILE" \
+        nft list table inet nefi_zt > /dev/null 2>&1 \
             && echo "NET_SEGMENTATION=true" || echo "NET_SEGMENTATION=false"
         findmnt -no OPTIONS /dev/shm 2>/dev/null | grep -q noexec && echo "SHM_NOEXEC=true" || echo "SHM_NOEXEC=false"
         findmnt -no OPTIONS /tmp 2>/dev/null | grep -q noexec && echo "TMP_NOEXEC=true" || echo "TMP_NOEXEC=false"

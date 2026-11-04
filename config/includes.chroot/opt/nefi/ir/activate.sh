@@ -12,19 +12,24 @@ echo "IR_START=$(date -u +%Y-%m-%dT%H:%M:%SZ)" > /var/lib/nefi/ir/ir-state.conf
 # ── 1. Block network ────────────────────────────────────
 echo "[NEFI-IR] Blocking network connections..."
 
-# Salva regole firewall correnti
-nft list ruleset > /var/lib/nefi/ir/nftables-backup.conf 2>/dev/null || true
-
-# Applica regole di isolamento totale
-nft flush ruleset
-nft add table inet nefi_ir
-nft add chain inet nefi_ir input  '{ type filter hook input  priority 0; policy drop; }'
-nft add chain inet nefi_ir output '{ type filter hook output priority 0; policy drop; }'
-nft add chain inet nefi_ir forward '{ type filter hook forward priority 0; policy drop; }'
-
-# Permetti solo loopback
-nft add rule inet nefi_ir input  iif lo accept
-nft add rule inet nefi_ir output oif lo accept
+# Tabella separata "nefi_ir": si aggiunge al firewall di base senza cancellarlo.
+# Un pacchetto scartato da QUALSIASI tabella resta scartato, quindi l'isolamento e' totale.
+nft delete table inet nefi_ir 2>/dev/null || true
+nft -f - << 'NFT'
+table inet nefi_ir {
+    chain input {
+        type filter hook input priority -10; policy drop;
+        iif lo accept
+    }
+    chain output {
+        type filter hook output priority -10; policy drop;
+        oif lo accept
+    }
+    chain forward {
+        type filter hook forward priority -10; policy drop;
+    }
+}
+NFT
 
 echo "[NEFI-IR] Network ISOLATED — all external connections blocked"
 echo "NETWORK_BLOCKED=true" >> /var/lib/nefi/ir/ir-state.conf

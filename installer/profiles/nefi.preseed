@@ -18,3 +18,8 @@ d-i passwd/root-login boolean false
 # Server di posta (exim4) solo locale: nessuna porta 25 aperta sulla rete
 exim4-config exim4/dc_eximconfig_configtype select local delivery only; not on a network
 exim4-config exim4/dc_local_interfaces string 127.0.0.1 ; ::1
+# Partizionamento: disco intero con LVM cifrato (LUKS), tutto in una partizione.
+# Vengono chiesti comunque il disco, la passphrase e la conferma prima di scrivere.
+d-i partman-auto/method string crypto
+d-i partman-auto/choose_recipe select atomic
+d-i partman-auto-lvm/guided_size string max

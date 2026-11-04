@@ -5,7 +5,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
-VERSION="${NEFI_VERSION:-0.2}"
+VERSION="${NEFI_VERSION:-0.3}"
 IN="${1:-$HERE/images/debian-13-amd64-DVD-1.iso}"
 OUT="${2:-$HERE/images/nefi-os-$VERSION-amd64.iso}"
 ASSETS="$REPO/branding/installer"

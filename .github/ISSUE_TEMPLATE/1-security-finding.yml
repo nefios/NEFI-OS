@@ -1,0 +1,66 @@
+name: "🔴 Security finding"
+description: Vulnerability or weakness found while testing NEFI OS (pentest)
+title: "[SEC] "
+labels: ["type: security", "status: triage"]
+body:
+  - type: markdown
+    attributes:
+      value: "Thanks for testing NEFI OS. This repository is private: write everything needed to reproduce the issue."
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      description: Your estimate (CVSS if you have it)
+      options: ["Critical", "High", "Medium", "Low", "Info"]
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: ["Security Center (GUI/modules)", "Root helpers (/opt/nefi, pkexec)", "USB Guardian", "Guardian AI / Ollama", "Firewall / network", "Hardening (sysctl, AppArmor, auditd)", "Installer / ISO", "Packages / updates", "KDE / desktop", "Other"]
+    validations:
+      required: true
+  - type: input
+    id: cvss
+    attributes:
+      label: CVSS vector (optional)
+      placeholder: "CVSS:3.1/AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:H/A:H"
+  - type: input
+    id: version
+    attributes:
+      label: NEFI OS version and environment
+      placeholder: "0.2, QEMU/KVM UEFI + Secure Boot, 8 GB RAM"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is wrong and where (file, service, port, module)
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact
+      description: What an attacker gains (privilege escalation, data leak, DoS...) and preconditions
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Logs, commands output, screenshots, PoC
+      render: shell
+  - type: textarea
+    id: fix
+    attributes:
+      label: Suggested fix (optional)

@@ -126,6 +126,11 @@ _ICONS = {
     "bot":       '<rect x="4" y="8" width="16" height="12" rx="3"/><path d="M12 4v4"/><circle cx="12" cy="3.5" r="1"/><circle cx="9" cy="14" r="1.2"/><circle cx="15" cy="14" r="1.2"/>',
     "zero":      '<circle cx="12" cy="12" r="9"/><path d="M5.6 18.4L18.4 5.6"/>',
     "snapshot":  '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    "key":       '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+    "block":     '<circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/>',
+    "edit":      '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+    "play":      '<path d="M7 5l12 7-12 7z"/>',
+    "x":         '<path d="M6 6l12 12M18 6L6 18"/>',
     "dot":       '<circle cx="12" cy="12" r="4" fill="COLOR"/>',
 }
 

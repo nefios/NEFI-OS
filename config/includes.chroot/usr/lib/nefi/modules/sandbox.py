@@ -8,6 +8,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
+from nefi_theme import C, icon_pixmap
+
 
 class SandboxWorker(QThread):
     output_line = pyqtSignal(str)
@@ -52,13 +54,13 @@ class SandboxProfileCard(QFrame):
         layout.setContentsMargins(16, 12, 16, 12)
         layout.setSpacing(14)
 
-        icon_lbl = QLabel(icon)
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(icon_pixmap(icon, C["accent"], 22))   # icona SVG del tema
         icon_lbl.setFixedSize(40, 40)
         icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_lbl.setStyleSheet("""
             background-color: #1a3a3f;
             border-radius: 10px;
-            font-size: 20px;
             border: none;
         """)
         layout.addWidget(icon_lbl)
@@ -124,13 +126,13 @@ class SandboxWidget(QWidget):
         layout.addWidget(quick_title)
 
         profiles = [
-            ("Firefox", "Isolated web browser", "🌐",
+            ("Firefox", "Isolated web browser", "globe",
              ["firejail", "--profile=/etc/firejail/firefox.profile", "firefox-esr"]),
-            ("File Manager", "Isolated file manager", "📁",
+            ("File Manager", "Isolated file manager", "folder",
              ["firejail", "dolphin"]),
-            ("Text Editor", "Isolated text editor", "📝",
+            ("Text Editor", "Isolated text editor", "edit",
              ["firejail", "kate"]),
-            ("Terminal", "Isolated terminal", "⌨",
+            ("Terminal", "Isolated terminal", "terminal",
              ["firejail", "konsole"]),
         ]
 

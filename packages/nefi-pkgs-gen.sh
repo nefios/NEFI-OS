@@ -7,7 +7,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 umask 022
-VER="0.2"
+VER="0.3"
 MAINT="NEFI OS Project <emanuel2005gabriel@gmail.com>"
 LB="$HOME/nefi-os"
 SRC="$LB/config/includes.chroot"
@@ -145,8 +145,8 @@ scripts() { # scripts <pkg> <comandi extra per postinst>
 }
 
 control nefi-security-center all admin \
-  "python3, python3-pyqt6, python3-pyqt6.qtsvg, python3-psutil, python3-requests, pkexec, polkitd, udisks2, util-linux, iproute2, apparmor, auditd, nftables, aide, aide-common" \
-  "python3-twisted, netcat-openbsd, firejail, snapper, btrfs-progs, mokutil, keepassxc, lynis, fonts-noto-color-emoji" \
+  "python3, python3-pyqt6, python3-pyqt6.qtsvg, python3-psutil, python3-requests, pkexec, polkitd, udisks2, util-linux, iproute2, apparmor, auditd, nftables, aide, aide-common, fonts-noto-color-emoji, libpam-tmpdir, libpam-pwquality, apt-listchanges, needrestart, fail2ban, python3-systemd, debsums, apt-show-versions, acct, sysstat, libnotify-bin, debsecan" \
+  "python3-twisted, netcat-openbsd, firejail, snapper, btrfs-progs, mokutil, keepassxc, lynis" \
   "nefi-ollama, suricata, yara, clamav, rkhunter, chkrootkit" \
   "NEFI Security Center - unified Blue Team console" \
   "PyQt6 console of NEFI OS with all the security modules and their helper scripts."

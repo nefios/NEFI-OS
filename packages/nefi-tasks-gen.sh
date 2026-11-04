@@ -46,7 +46,8 @@ DESKTOP_KDE="nefi-desktop kde-plasma-desktop sddm konsole dolphin kate firefox-e
 CORE="nefi-security-center python3-pyqt6 python3-pyqt6.qtsvg python3-psutil python3-requests
   python3-twisted apparmor apparmor-utils apparmor-profiles auditd audispd-plugins nftables
   aide aide-common mokutil polkitd pkexec udisks2 firejail keepassxc snapper btrfs-progs
-  netcat-openbsd"
+  netcat-openbsd
+  libpam-tmpdir libpam-pwquality apt-listchanges needrestart fail2ban python3-systemd debsums apt-show-versions acct sysstat libnotify-bin debsecan"
 DEFAULT="suricata yara clamav clamav-daemon chkrootkit rkhunter lynis nmap tcpdump net-tools"
 LARGE_EXTRA="dc3dd foremost binwalk sleuthkit autopsy testdisk gddrescue ewf-tools wireshark tshark"
 AI="nefi-ollama"

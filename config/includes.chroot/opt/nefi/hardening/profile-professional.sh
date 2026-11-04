@@ -5,7 +5,7 @@ echo "[NEFI] Applying PROFESSIONAL profile..."
 
 bash /opt/nefi/hardening/profile-home.sh
 
-aa-enforce /etc/apparmor.d/* 2>/dev/null || true
+bash /opt/nefi/hardening/apparmor-mode.sh enforce /var/lib/nefi/hardening-apparmor.list || true
 
 cat > /etc/udev/rules.d/99-nefi-usb-restrict.rules << 'UDEV'
 SUBSYSTEM=="usb", ATTR{bDeviceClass}=="08", RUN+="/bin/false"

@@ -1,0 +1,8 @@
+[Desktop Entry]
+# NEFI OS - KDE Connect (porta 1716) non parte da solo: espone il PC alla rete locale.
+# Per usarlo: elimina questo file e riavvia la sessione.
+Type=Application
+Name=KDE Connect
+Exec=/usr/bin/kdeconnectd
+Hidden=true
+X-KDE-autostart-enabled=false

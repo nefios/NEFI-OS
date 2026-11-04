@@ -1,0 +1,6 @@
+# NEFI OS - impedisce l'avvio "a richiesta" di KDE Connect (porte 1716 e 5353).
+# Per usare KDE Connect: elimina questo file e il file
+# ~/.config/autostart/org.kde.kdeconnect.daemon.desktop, poi riavvia la sessione.
+[D-BUS Service]
+Name=org.kde.kdeconnect
+Exec=/bin/false

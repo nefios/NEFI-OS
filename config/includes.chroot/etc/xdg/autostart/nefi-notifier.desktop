@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=NEFI Notifier
+Comment=Desktop notifications for serious security events (Falco, CrowdSec)
+Exec=/usr/bin/nefi-notifier
+Icon=nefi-security-center
+NoDisplay=true
+X-KDE-autostart-phase=2

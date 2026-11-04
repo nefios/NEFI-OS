@@ -1,186 +1,156 @@
-"""NEFI Security Center — System › Security Score"""
-import subprocess
-import time
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea
-)
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
-from nefi_theme import (
-    C, TONES, HeroCard, ScoreRing, SectionLabel, PrimaryButton, GhostButton,
-    CheckRow, Card, icon_pixmap, compact
-)
+"""NEFI Security Center — System › Security Score
 
-# id, icona, titolo, descrizione, punti, suggerimento se fallisce
-CHECKS = [
-    ("firewall",   "wall",     "Firewall active",      "nftables or ufw running",            20, "Start nftables or ufw"),
-    ("apparmor",   "box",      "AppArmor enforcing",   "Mandatory Access Control active",    20, "Start AppArmor via systemctl"),
-    ("auditd",     "file",     "Kernel audit",         "auditd tracks system events",        15, "Start auditd"),
-    ("secureboot", "power",    "Secure Boot",          "Bootloader signature verified",      15, "Enable Secure Boot in BIOS/UEFI"),
-    ("encryption", "lock",     "Disk encryption",      "LUKS/dm-crypt on filesystem",        15, "Configure LUKS during installation"),
-    ("updates",    "download", "System up to date",    "No pending security updates",        10, "Run apt update && apt upgrade"),
-    ("rootlogin",  "user_x",   "Root login disabled",  "SSH root login not permitted",        5, "Set PermitRootLogin no in sshd_config"),
-]
+Il punteggio NON viene calcolato qui: viene da /opt/nefi/system/collect.py (root), che esegue
+controlli verificabili e salva per ognuno stato, prova, metodo e peso.
+Score    = (pesi superati + meta' dei pesi in avviso) / pesi verificabili x 100
+Coverage = pesi verificabili / pesi totali  (i controlli non verificabili sono esclusi e mostrati a parte)
+"""
+from PyQt6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QFrame, QGridLayout
+from PyQt6.QtCore import Qt
+
+from nefi_theme import (C, TONES, HeroCard, ScoreRing, SectionLabel, GhostButton, Card, Pill,
+                        icon_pixmap, compact)
+from assessment import AssessmentBase, CheckList, stat_line, tone_for
+
+CAT_PAGE = {   # categoria -> id della pagina nel menu
+    "hardware": "hardware", "boot": "boot", "kernel": "kernelsec", "integrity": "sysintegrity",
+    "services": "secservices", "packages": "packages", "config": "configaudit",
+    "backup": "backup", "updates": "updates",
+}
 
 
-def _run(cmd, timeout=5):
-    try:
-        return subprocess.run(cmd, shell=isinstance(cmd, str), capture_output=True,
-                              text=True, timeout=timeout).stdout
-    except Exception:
-        return ""
+class CategoryTile(QFrame):
+    def __init__(self, key, on_open):
+        super().__init__()
+        self.key, self.on_open = key, on_open
+        self.setObjectName("catTile")
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(14, 10, 14, 10)
+        t = QVBoxLayout()
+        t.setSpacing(2)
+        self.name = QLabel("")
+        self.name.setStyleSheet("font-size: 14px; font-weight: bold; background: transparent;")
+        self.sub = QLabel("")
+        self.sub.setStyleSheet(f"color: {C['text3']}; font-size: 12px; background: transparent;")
+        t.addWidget(self.name)
+        t.addWidget(self.sub)
+        lay.addLayout(t, 1)
+        self.pill = Pill("…", "muted", 80)
+        self.pill.setFixedHeight(30)
+        lay.addWidget(self.pill)
+        self.setStyleSheet(f"QFrame#catTile {{ background: {C['card2']}; border: 1px solid {C['border']}; "
+                           f"border-radius: 10px; }} QFrame#catTile:hover {{ border-color: {C['accent']}; }}")
+
+    def set_data(self, cat):
+        sc = cat.get("score")
+        self.name.setText(cat.get("name", self.key))
+        self.sub.setText(f"{cat.get('failed', 0)} failed • {cat.get('warnings', 0)} warn • "
+                         f"{cat.get('unknown', 0)} n/v • coverage {cat.get('coverage', 0)}%")
+        self.pill.setText(f"{sc}" if sc is not None else "n/a")
+        self.pill.set_tone(tone_for(sc))
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.MouseButton.LeftButton:
+            self.on_open(self.key)
 
 
-class ScoreWorker(QThread):
-    done = pyqtSignal(dict)
-
-    def run(self):
-        active = lambda s: _run(["systemctl", "is-active", s]).strip() == "active"
-        res = {
-            "firewall":   active("nftables") or active("ufw"),
-            "apparmor":   active("apparmor"),
-            "auditd":     active("auditd"),
-            "secureboot": "enabled" in _run("mokutil --sb-state 2>/dev/null").lower(),
-            "encryption": "crypt" in _run("lsblk -o TYPE 2>/dev/null"),
-            "updates":    _run("apt list --upgradable 2>/dev/null | grep -ci security", 20).strip() in ("", "0"),
-            "rootlogin":  "yes" not in _run("grep -i '^PermitRootLogin' /etc/ssh/sshd_config 2>/dev/null").lower(),
-        }
-        self.done.emit(res)
-
-
-class SecurityScoreWidget(QWidget):
+class SecurityScoreWidget(AssessmentBase):
     def __init__(self):
         super().__init__()
-        self.worker = None
-        self.last_run = 0
-        self.issues_only = False
-        self.results = {}
-        self._build_ui()
-        self.recalculate()
-
-    def _build_ui(self):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(18)
+        lay.setSpacing(16)
 
-        # ── Hero ──
-        hero = HeroCard()
-        self.ring = ScoreRing(180 if compact() else 240)
+        # ── punteggio ──
+        hero = HeroCard(decoration=False)   # niente esagoni: il testo qui e' lungo
+        self.ring = ScoreRing(170 if compact() else 220)
         hero.body.addWidget(self.ring)
-
         info = QVBoxLayout()
-        info.setSpacing(14)
+        info.setSpacing(10)
         info.addStretch()
         info.addWidget(SectionLabel("Security Score"))
-        self.title = QLabel()
-        self.title.setStyleSheet("font-size: 34px; font-weight: bold; background: transparent;")
+        self.title = QLabel("Security Score")
+        self.title.setStyleSheet("font-size: 30px; font-weight: bold; background: transparent;")
         info.addWidget(self.title)
-
-        self.level_box = QFrame()
-        self.level_box.setObjectName("levelBox")
-        self.level_box.setStyleSheet(f"""
-            QFrame#levelBox {{ background: {C['bg2']}AA; border: 1px solid {C['border2']}; border-radius: 12px; }}
-        """)
-        lb = QHBoxLayout(self.level_box)
-        lb.setContentsMargins(18, 12, 22, 12)
-        lb.setSpacing(14)
-        self.level_icon = QLabel()
-        lb.addWidget(self.level_icon)
-        self.level_lbl = QLabel("Calculating…")
-        self.level_lbl.setWordWrap(True)
-        self.level_lbl.setStyleSheet("font-size: 15px; background: transparent;")
-        lb.addWidget(self.level_lbl, 1)
-        self.level_box.setMaximumWidth(460)
-        info.addWidget(self.level_box)
-
-        info.addSpacing(6)
-        self.recalc_btn = PrimaryButton("Recalculate", "refresh", 46 if compact() else 54)
-        self.recalc_btn.setFixedWidth(260)
-        self.recalc_btn.clicked.connect(self.recalculate)
-        info.addWidget(self.recalc_btn)
+        self.level = QLabel("")
+        self.level.setWordWrap(True)
+        self.level.setStyleSheet("font-size: 15px; background: transparent;")
+        info.addWidget(self.level)
+        self.coverage = QLabel("")
+        self.coverage.setWordWrap(True)
+        self.coverage.setStyleSheet(f"color: {C['text2']}; font-size: 13px; background: transparent;")
+        info.addWidget(self.coverage)
+        info.addLayout(self._run_bar())
         info.addStretch()
-        hero.body.addLayout(info)
-        hero.body.addStretch()
+        hero.body.addLayout(info, 1)
         lay.addWidget(hero)
 
-        # ── Controlli ──
-        card = Card(padding=26)
+        # ── categorie ──
+        cats = Card(padding=18)
+        cats.body.addWidget(SectionLabel("By area (click to open)"))
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        self.tiles = {}
+        for i, key in enumerate(CAT_PAGE):
+            tile = CategoryTile(key, self._open)
+            self.tiles[key] = tile
+            grid.addWidget(tile, i // 3, i % 3)
+        cats.body.addLayout(grid)
+        lay.addWidget(cats)
+
+        # ── controlli ──
+        card = Card(padding=18)
         head = QHBoxLayout()
-        head.addWidget(SectionLabel("Checks performed"))
+        head.addWidget(SectionLabel("All checks"))
         head.addStretch()
-        self.view_btn = GhostButton("View issues only", "list", 42)
-        self.view_btn.clicked.connect(self._toggle_view)
-        head.addWidget(self.view_btn)
+        self.filter_btns = {}
+        for key, label in (("issues", "Issues"), ("unknown", "Not verifiable"), ("all", "All")):
+            b = GhostButton(label, None, 32)
+            b.clicked.connect(lambda _c, k=key: self._filter(k))
+            head.addWidget(b)
+            self.filter_btns[key] = b
         card.body.addLayout(head)
-
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        inner = QWidget()
-        inner.setStyleSheet("background: transparent;")
-        self.rows_lay = QVBoxLayout(inner)
-        self.rows_lay.setContentsMargins(0, 0, 8, 0)
-        self.rows_lay.setSpacing(10)
-        self.rows = {}
-        for cid, ic, title, desc, pts, _ in CHECKS:
-            row = CheckRow(ic, title, desc, f"+{pts}", True)
-            row.set_state(True, desc, f"+{pts}", tone="muted")
-            self.rows[cid] = row
-            self.rows_lay.addWidget(row)
-        self.rows_lay.addStretch()
-        scroll.setWidget(inner)
-        card.body.addWidget(scroll, 1)
+        self.method = QLabel("")
+        self.method.setWordWrap(True)
+        self.method.setStyleSheet(f"color: {C['text3']}; font-size: 12px; background: transparent;")
+        card.body.addWidget(self.method)
+        self.list = CheckList()
+        self.list.filter = "issues"
+        card.body.addWidget(self.list)
         lay.addWidget(card, 1)
+        self.refresh(force=True)
 
-    # ── Logica ──
-    def recalculate(self):
-        if self.worker and self.worker.isRunning():
+    def _open(self, key):
+        win = self.window()
+        if hasattr(win, "open_module"):
+            win.open_module(CAT_PAGE[key])
+
+    def _filter(self, key):
+        if self.report:
+            self.list.set_checks(self.report.get("checks", []), key)
+
+    def apply(self, rep):
+        if rep is None:
+            self.ring.set_score(0)
+            self.title.setText("Security Score: not calculated yet")
+            self.level.setText("")
+            self.coverage.setText("")
+            self.list.set_checks([])
             return
-        self.recalc_btn.setEnabled(False)
-        self.recalc_btn.setText("  Checking…")
-        self.worker = ScoreWorker()
-        self.worker.done.connect(self._apply)
-        self.worker.start()
-
-    def _apply(self, res):
-        self.results = res
-        self.last_run = time.time()
-        self.recalc_btn.setEnabled(True)
-        self.recalc_btn.setText("  Recalculate")
-
-        total = max_total = 0
-        failed = 0
-        for cid, ic, title, desc, pts, hint in CHECKS:
-            ok = res.get(cid, False)
-            max_total += pts
-            total += pts if ok else 0
-            failed += 0 if ok else 1
-            self.rows[cid].set_state(ok, desc if ok else hint, f"+{pts}" if ok else "+0")
-        score = round(100 * total / max_total)
-        self.ring.set_score(score)
-
-        if score >= 80:
-            level, tone = "Good", "ok"
-        elif score >= 50:
-            level, tone = "Needs improvement", "warn"
-        else:
-            level, tone = "Critical", "danger"
+        s = rep.get("summary", {})
+        sc = s.get("score")
+        self.ring.set_score(sc or 0)
+        tone = tone_for(sc)
         fg = TONES[tone][0]
-        self.title.setText(f'NEFI Score: <span style="color:{C["accent"]}">{score}/100</span>')
-        self.level_icon.setPixmap(icon_pixmap("alert" if failed else "check_sq", fg, 26))
-        issues = f"{failed} checks need improvement" if failed else "all checks passed"
-        self.level_lbl.setText(f'Level: <b style="color:{fg}">{level}</b> — {issues}')
-        self._apply_filter()
-
-    def _toggle_view(self):
-        self.issues_only = not self.issues_only
-        self.view_btn.setText("  View all checks" if self.issues_only else "  View issues only")
-        self._apply_filter()
-
-    def _apply_filter(self):
-        for cid, row in self.rows.items():
-            row.setVisible(not self.issues_only or not self.results.get(cid, False))
-
-    def refresh(self):
-        # ricalcola al massimo ogni 60 secondi, senza bloccare l'interfaccia
-        if time.time() - self.last_run > 60:
-            self.recalculate()
+        level = {"ok": "Good", "warn": "Needs improvement", "danger": "Critical", "muted": "Unknown"}[tone]
+        self.title.setText(f'NEFI Score: <span style="color:{fg}">{sc if sc is not None else "n/a"}/100</span>')
+        self.level.setText(f'Level: <b style="color:{fg}">{level}</b>  —  {stat_line(s)}')
+        self.coverage.setText(
+            f"Coverage: <b>{s.get('coverage', 0)}%</b> of the checks (by weight) could be verified on this machine. "
+            f"Checks that could not be verified are not counted as passed: see the 'Not verifiable' filter.")
+        doc = rep.get("weights_doc", {})
+        self.method.setText(f"How the score is calculated: {doc.get('formula', '')} {doc.get('scale', '')}")
+        for key, tile in self.tiles.items():
+            tile.set_data(rep.get("categories", {}).get(key, {"name": key}))
+        self.list.set_checks(rep.get("checks", []))

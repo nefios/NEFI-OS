@@ -40,6 +40,18 @@ Packages: list
  snapper
  btrfs-progs
  netcat-openbsd
+ libpam-tmpdir
+ libpam-pwquality
+ apt-listchanges
+ needrestart
+ fail2ban
+ python3-systemd
+ debsums
+ apt-show-versions
+ acct
+ sysstat
+ libnotify-bin
+ debsecan
  suricata
  yara
  clamav
@@ -130,6 +142,18 @@ Packages: list
  snapper
  btrfs-progs
  netcat-openbsd
+ libpam-tmpdir
+ libpam-pwquality
+ apt-listchanges
+ needrestart
+ fail2ban
+ python3-systemd
+ debsums
+ apt-show-versions
+ acct
+ sysstat
+ libnotify-bin
+ debsecan
 
 Task: nefi-default
 Parent: nefi-tools

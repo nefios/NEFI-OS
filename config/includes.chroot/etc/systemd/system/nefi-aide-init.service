@@ -1,0 +1,22 @@
+[Unit]
+Description=NEFI — Create the AIDE integrity baseline (first boot only)
+ConditionPathExists=!/var/lib/aide/aide.db
+After=multi-user.target
+Wants=multi-user.target
+
+[Service]
+Type=oneshot
+# gira con priorita' minima: non rallenta il desktop
+Nice=19
+IOSchedulingClass=idle
+ExecStart=/bin/bash /opt/nefi/integrity/init-baseline.sh
+# riapplica i permessi della baseline appena creata (il servizio dei permessi e' gia' attivo: serve restart)
+ExecStartPost=-/bin/systemctl restart nefi-aide-perms.service
+TimeoutStartSec=2h
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+ProtectHome=read-only
+
+[Install]
+WantedBy=multi-user.target

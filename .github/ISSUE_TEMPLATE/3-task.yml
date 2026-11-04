@@ -1,0 +1,24 @@
+name: "🛠️ Task / feature"
+description: Work to do (new feature, improvement, chore)
+title: "[TASK] "
+labels: ["type: task", "status: triage"]
+body:
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: What should be done and why
+    validations:
+      required: true
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      description: How we know it is finished
+      placeholder: "- [ ] ...\n- [ ] ..."
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes / links

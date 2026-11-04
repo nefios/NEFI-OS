@@ -4,7 +4,7 @@ import os
 import traceback
 
 from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
+    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QFrame,
     QStackedWidget, QTextEdit, QSizePolicy, QScrollArea
 )
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal, QPoint
@@ -15,10 +15,18 @@ from nefi_theme import C, icon_pixmap, glow, SectionLabel, Card, compact
 # ── Registro moduli: sezione → (id, titolo, icona, descrizione, modulo, classe) ──
 SECTIONS = [
     ("system", "System", "monitor", [
-        ("score",      "Security Score",  "target",   "Overall security posture",        "security_score",     "SecurityScoreWidget"),
-        ("overview",   "System Overview", "cpu",      "CPU, memory, disk and uptime",    "system_status",      "SystemStatusWidget"),
-        ("secureboot", "Secure Boot",     "power",    "Secure Boot, TPM and lockdown",   "secureboot_monitor", "SecureBootMonitorWidget"),
-        ("snapshots",  "Snapshots",       "snapshot", "Btrfs snapshots and rollback",    "snapshot_manager",   "SnapshotManagerWidget"),
+        ("score",        "Security Score",      "target",      "Verified overall security posture",      "security_score", "SecurityScoreWidget"),
+        ("overview",     "System Overview",     "cpu",         "CPU, memory, disk and uptime",           "system_status",  "SystemStatusWidget"),
+        ("hardware",     "Hardware Security",   "cpu",         "TPM, CPU flaws, IOMMU, firmware",         "system_pages",   "HardwarePage"),
+        ("boot",         "Boot Integrity",      "power",       "Secure Boot, lockdown, signed modules",   "system_pages",   "BootPage"),
+        ("kernelsec",    "Kernel Security",     "sliders",     "Kernel hardening, AppArmor, audit",       "system_pages",   "KernelPage"),
+        ("sysintegrity", "System Integrity",    "fingerprint", "Package checksums, AIDE, SUID",           "system_pages",   "IntegrityPage"),
+        ("secservices",  "Security Services",   "services",    "Verify and manage security services",     "system_pages",   "ServicesPage"),
+        ("packages",     "Package Security",    "box",         "Vulnerable packages and sources",         "system_pages",   "PackagesPage"),
+        ("configaudit",  "Configuration Audit", "check_sq",    "Encryption, SSH, sudo, accounts",         "system_pages",   "ConfigPage"),
+        ("backup",       "Backup & Recovery",   "snapshot",    "Snapshots and restore tests",             "system_pages",   "BackupPage"),
+        ("updates",      "Update Health",       "download",    "Security and automatic updates",          "system_pages",   "UpdatesPage"),
+        ("snapshots",    "Snapshots",           "snapshot",    "Btrfs snapshots and rollback",            "snapshot_manager", "SnapshotManagerWidget"),
     ]),
     ("prevention", "Prevention", "shield", [
         ("profiles",   "Hardening Profiles", "sliders",  "Home, Professional, Paranoid",  "hardening_profiles", "HardeningProfilesWidget"),
@@ -33,6 +41,7 @@ SECTIONS = [
         ("threatintel","Threat Intelligence",   "globe", "IOC, feeds and VirusTotal",       "threat_intel", "ThreatIntelWidget"),
         ("vuln",       "Vulnerability Scanner", "bug",   "Lynis security audit",            "vuln_scanner", "VulnScannerWidget"),
         ("honeypot",   "Honeypot",              "honey", "Decoy SSH and HTTP services",     "honeypot",     "HoneypotWidget"),
+        ("runtime",    "Runtime Alerts",        "alert", "Falco real-time threat detection", "runtime_alerts", "RuntimeAlertsWidget"),
     ]),
     ("dfir", "DFIR", "file", [
         ("evidence",   "Evidence Collection", "folder",      "One-click forensic acquisition", "forensics",         "ForensicsWidget"),
@@ -40,18 +49,30 @@ SECTIONS = [
         ("logs",       "Log Viewer",          "terminal",    "System and security logs",       "log_viewer",        "LogViewerWidget"),
     ]),
     ("monitoring", "Monitoring", "chart", [
-        ("services",   "Security Services", "services", "Status of security daemons",   "security_status", "SecurityStatusWidget"),
         ("network",    "Network Monitor",   "network",  "Interfaces and connections",   "network_monitor", "NetworkMonitorWidget"),
         ("processes",  "Processes",         "activity", "Process tree and control",     "process_monitor", "ProcessMonitorWidget"),
     ]),
     ("response", "Response", "gear", [
         ("ir",         "Incident Response", "siren", "Isolate host and collect evidence", "incident_response", "IncidentResponseWidget"),
+        ("blocking",   "Threat Blocking",   "wall",  "CrowdSec: blocked attackers, allow or block", "threat_blocking", "ThreatBlockingWidget"),
         ("guardian",   "NEFI Guardian",     "bot",   "AI security assistant",             "guardian",          "GuardianWidget"),
     ]),
 ]
 
+def nefi_version():
+    """Versione di NEFI OS letta da /etc/os-release (un solo punto da aggiornare)."""
+    try:
+        with open("/etc/os-release") as f:
+            for line in f:
+                if line.startswith("VERSION_ID="):
+                    return line.split("=", 1)[1].strip().strip('"') or "?"
+    except OSError:
+        pass
+    return "?"
+
+
 EAGER = {"edr"}   # moduli avviati subito (monitoraggio continuo)
-NATIVE = {"score"}  # moduli già ridisegnati: gestiscono da soli lo spazio
+NATIVE = set()  # moduli già ridisegnati: gestiscono da soli lo spazio
 
 
 # ── Barra di navigazione ────────────────────────────────
@@ -177,23 +198,33 @@ class Dropdown(QFrame):
         self.lay.setContentsMargins(8, 8, 8, 8)
         self.lay.setSpacing(2)
         self.items = {}          # sezione → voci (create una volta sola)
+        self.boxes = {}          # sezione → contenitore (una o due colonne)
         self.hide()
 
     def populate(self, key, modules, current_id):
         if key not in self.items:
+            box = QWidget()
+            box.setStyleSheet("background: transparent;")
+            grid = QGridLayout(box)
+            grid.setContentsMargins(0, 0, 0, 0)
+            grid.setHorizontalSpacing(4)
+            grid.setVerticalSpacing(2)
+            cols = 2 if len(modules) > 6 else 1          # piu' di 6 voci: due colonne
+            rows = (len(modules) + cols - 1) // cols
             lst = []
-            for mod_id, title, icon_name, desc, *_ in modules:
+            for i, (mod_id, title, icon_name, desc, *_) in enumerate(modules):
                 item = DropdownItem(mod_id, title, icon_name, desc)
                 item.clicked.connect(self.picked.emit)
-                self.lay.addWidget(item)
+                grid.addWidget(item, i % rows, i // rows)   # riempie prima la colonna di sinistra
                 lst.append(item)
+            self.lay.addWidget(box)
             self.items[key] = lst
-        for k, lst in self.items.items():
-            for it in lst:
-                it.setVisible(k == key)
+            self.boxes[key] = box
+        for k, box in self.boxes.items():
+            box.setVisible(k == key)
+            for it in self.items[k]:
                 it.set_current(it.mod_id == current_id)
-        h = 16 + sum(it.sizeHint().height() for it in self.items[key]) + 2 * (len(self.items[key]) - 1)
-        self.setFixedHeight(h)
+        self.setFixedHeight(16 + self.boxes[key].sizeHint().height())
 
     def enterEvent(self, e):
         self.entered.emit()
@@ -343,7 +374,7 @@ class MainWindow(QMainWindow):
         d = QLabel()
         d.setPixmap(icon_pixmap("dot", C["accent"], 12))
         pl.addWidget(d)
-        v = QLabel("v0.1  •  Blue Team Edition")
+        v = QLabel(f"v{nefi_version()}  •  Blue Team Edition")
         v.setStyleSheet("font-size: 14px; background: transparent;")
         pl.addWidget(v)
         h.addWidget(pill)
@@ -354,7 +385,7 @@ class MainWindow(QMainWindow):
         self._cancel_hide()
         key = btn.key
         mods = next(m for k, _, _, m in SECTIONS if k == key)
-        w = max(320, btn.width())
+        w = max(680 if len(mods) > 6 else 320, btn.width())
         self.dropdown.setFixedWidth(w)
         self.dropdown.populate(key, mods, self.current)
         pos = btn.mapTo(self.root, QPoint(0, btn.height() + 8))

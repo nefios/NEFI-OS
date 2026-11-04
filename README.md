@@ -7,7 +7,20 @@ threat hunting, all from one interface, the **NEFI Security Center**.
 > *Enterprise-grade defense without enterprise complexity.*
 > NEFI OS contains **no offensive tools**.
 
-> ⚠️ **Status: pre-release (0.2).** Tested in virtual machines. Not yet recommended for production.
+> ⚠️ **Status: pre-release (0.3).** Tested in virtual machines. Not yet recommended for production.
+
+## What's new in 0.3
+
+- **Evidence-based Security Score** — 61 verified checks in 9 areas with evidence, method, weights and coverage
+  ([methodology](docs/security-score.md)).
+- **9 new System pages** — hardware, boot chain, kernel, integrity, security services, packages, configuration,
+  backup and updates.
+- **Falco** runtime detection and **CrowdSec** automatic blocking, installed with one click from the Security Center,
+  with desktop notifications.
+- **Anti privilege-escalation hardening** — Lynis hardening index 70 → 85.
+- **Full-disk encryption** proposed by default in the installer.
+
+Full list: [CHANGELOG](CHANGELOG.md) · [Release notes](docs/release-notes-0.3.md)
 
 ## Features
 
@@ -33,11 +46,11 @@ and join them.
 
 **Linux / macOS**
 ```bash
-cat nefi-os-0.2-amd64.iso.part* > nefi-os-0.2-amd64.iso
+cat nefi-os-0.3-amd64.iso.part* > nefi-os-0.3-amd64.iso
 ```
 **Windows** (Command Prompt, in the download folder)
 ```bat
-copy /b nefi-os-0.2-amd64.iso.part00 + nefi-os-0.2-amd64.iso.part01 nefi-os-0.2-amd64.iso
+copy /b nefi-os-0.3-amd64.iso.part00 + nefi-os-0.3-amd64.iso.part01 nefi-os-0.3-amd64.iso
 ```
 
 ### Verify the download
@@ -50,7 +63,7 @@ sha256sum -c SHA256SUMS --ignore-missing
 Both commands must report a good signature / `OK`. If not, **do not use the ISO**.
 
 Write it to a USB stick with [balenaEtcher](https://etcher.balena.io/), Rufus (DD mode) or
-`sudo dd if=nefi-os-0.2-amd64.iso of=/dev/sdX bs=4M status=progress`.
+`sudo dd if=nefi-os-0.3-amd64.iso of=/dev/sdX bs=4M status=progress`.
 
 ## System requirements
 

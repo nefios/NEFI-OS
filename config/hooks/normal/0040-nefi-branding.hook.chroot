@@ -1,12 +1,16 @@
 #!/bin/bash
 echo "[NEFI] Applying branding..."
+NEFI_VERSION="0.3"   # versione usata solo se manca il pacchetto nefi-branding (ISO live)
 
-# Identità del sistema: NEFI OS, compatibile Debian
-cat > /usr/lib/os-release << 'OSR'
-PRETTY_NAME="NEFI OS 0.1 (Blue Team Edition)"
+# Identità del sistema: NEFI OS, compatibile Debian.
+# Sul sistema installato /usr/lib/os-release arriva dal pacchetto nefi-branding:
+# in quel caso non lo tocco, cosi' la versione e' scritta in un posto solo.
+if ! dpkg-query -S /usr/lib/os-release 2>/dev/null | grep -q nefi-branding; then
+cat > /usr/lib/os-release << OSR
+PRETTY_NAME="NEFI OS ${NEFI_VERSION} (Blue Team Edition)"
 NAME="NEFI OS"
-VERSION_ID="0.1"
-VERSION="0.1 (Blue Team Edition)"
+VERSION_ID="${NEFI_VERSION}"
+VERSION="${NEFI_VERSION} (Blue Team Edition)"
 VERSION_CODENAME=trixie
 ID=nefi
 ID_LIKE=debian
@@ -15,10 +19,41 @@ HOME_URL="https://github.com/nefi-os"
 SUPPORT_URL="https://github.com/nefi-os"
 BUG_REPORT_URL="https://github.com/nefi-os"
 OSR
+fi
 ln -sf ../usr/lib/os-release /etc/os-release
 
-echo 'NEFI OS 0.1 \n \l' > /etc/issue
-echo 'NEFI OS 0.1' > /etc/issue.net
+# Messaggio di login con la versione presa da os-release
+VER="$(. /usr/lib/os-release && echo "$VERSION_ID")"
+V="${VER:-$NEFI_VERSION}"
+# \n e \l sono codici di getty (nome macchina e terminale): restano scritti cosi'
+cat > /etc/issue << ISSUE
+NEFI OS $V \\n \\l
+
+Authorized access only. This system is monitored: all activity is logged and audited.
+Unauthorized use is prohibited and may be reported to law enforcement and prosecuted.
+
+ISSUE
+cat > /etc/issue.net << ISSUE
+NEFI OS $V
+Authorized access only. This system is monitored: all activity is logged and audited.
+Unauthorized use is prohibited and may be reported to law enforcement and prosecuted.
+ISSUE
+
+# KDE Connect spento anche per gli utenti GIA' creati (l'installer crea l'utente
+# prima di installare i pacchetti NEFI, quindi /etc/skel non e' stato copiato)
+for home in /home/*; do
+    [ -d "$home" ] || continue
+    owner="$(stat -c %U "$home")"
+    uid="$(id -u "$owner" 2>/dev/null)" || continue
+    [ "$uid" -ge 1000 ] || continue
+    for f in .config/autostart/org.kde.kdeconnect.daemon.desktop \
+             .local/share/dbus-1/services/org.kde.kdeconnect.service; do
+        [ -e "$home/$f" ] && continue
+        runuser -u "$owner" -- mkdir -p "$home/$(dirname "$f")"
+        runuser -u "$owner" -- cp "/etc/skel/$f" "$home/$f"
+    done
+done
+pkill -x kdeconnectd 2>/dev/null || true
 
 # Permessi corretti per l'avatar
 chmod 700 /var/lib/AccountsService/users 2>/dev/null || true

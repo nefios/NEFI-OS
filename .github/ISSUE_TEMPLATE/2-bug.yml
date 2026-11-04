@@ -1,0 +1,34 @@
+name: "🐞 Bug"
+description: Something does not work as expected
+title: "[BUG] "
+labels: ["type: bug", "status: triage"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: NEFI OS version and environment
+      placeholder: "0.2, VM / real hardware model"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. ...\n2. ..."
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / screenshots
+      render: shell

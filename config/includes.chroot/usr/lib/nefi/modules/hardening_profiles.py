@@ -136,7 +136,8 @@ class HardeningProfilesWidget(QWidget):
             "Paranoid", "Maximum",
             "Maximum possible security. Some features may be less convenient.",
             ["Secure Boot recommended", "USB blocked (except HID)",
-             "Root login disabled", "Strict MAC", "Non-essential services disabled"],
+             "Root login disabled", "Strict MAC", "Non-essential services disabled",
+             "User namespaces off (no Chromium/Flatpak)"],
             "#ff6b6b",
             "/opt/nefi/hardening/profile-paranoid.sh"
         )

@@ -4,7 +4,7 @@
 # Uso: ./build.sh   oppure   NEFI_VERSION=0.3 ./build.sh
 set -uo pipefail
 cd "$(dirname "$0")"
-VERSION="${NEFI_VERSION:-0.2}"
+VERSION="${NEFI_VERSION:-0.3}"
 DIST="trixie"
 LOG="$HOME/nefi-installer-build.log"
 BASE_ISO="images/debian-13-amd64-DVD-1.iso"

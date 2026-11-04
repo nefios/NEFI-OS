@@ -111,3 +111,15 @@ wireshark
 tshark
 nefi-ollama
 openssh-server
+libpam-tmpdir
+libpam-pwquality
+apt-listchanges
+needrestart
+fail2ban
+python3-systemd
+debsums
+apt-show-versions
+acct
+sysstat
+libnotify-bin
+debsecan

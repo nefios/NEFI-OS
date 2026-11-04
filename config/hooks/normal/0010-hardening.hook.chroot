@@ -31,9 +31,15 @@ fs.protected_symlinks = 1
 kernel.yama.ptrace_scope = 1
 SYSCTL
 
-# Regole nftables base
+# ── Firewall di base ────────────────────────────────────
+# In ingresso e' tutto chiuso. Le eccezioni (es. SSH) sono file separati in
+# /etc/nefi/firewall.d/*.nft, cosi' si aprono e chiudono senza toccare questo file.
+# Incident Response e Zero Trust usano tabelle proprie (nefi_ir, nefi_zt) e non
+# cancellano mai queste regole.
+mkdir -p /etc/nefi/firewall.d
 cat > /etc/nftables.conf << 'NFT'
 #!/usr/sbin/nft -f
+# NEFI OS - firewall di base
 flush ruleset
 
 table inet filter {
@@ -42,8 +48,11 @@ table inet filter {
         ct state established,related accept
         ct state invalid drop
         iif lo accept
-        ip protocol icmp accept
-        tcp dport 22 accept
+        ip protocol icmp icmp type { echo-request, destination-unreachable, time-exceeded } limit rate 10/second accept
+        ip6 nexthdr icmpv6 icmpv6 type { echo-request, destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+        udp sport 67 udp dport 68 accept
+        udp sport 547 udp dport 546 accept
+        include "/etc/nefi/firewall.d/*.nft"
     }
     chain forward {
         type filter hook forward priority 0; policy drop;
@@ -54,6 +63,227 @@ table inet filter {
 }
 NFT
 
+# SSH: la porta 22 si apre solo se il server SSH e' installato
+if [ -x /usr/sbin/sshd ]; then
+    echo 'tcp dport 22 accept comment "NEFI: SSH server"' > /etc/nefi/firewall.d/ssh.nft
+fi
+
 systemctl enable nftables 2>/dev/null || true
+# carica subito le regole (sul sistema installato; nella build live fallisce senza danni)
+nft -f /etc/nftables.conf 2>/dev/null || true
+
+# ── Servizi che aprono porte verso la rete locale ───────
+# mDNS / Avahi (porta 5353): non serve su una postazione Blue Team.
+# Si puo' riattivare dal modulo Privacy o con: sudo systemctl enable --now avahi-daemon
+systemctl disable avahi-daemon.service avahi-daemon.socket 2>/dev/null || true
+systemctl stop avahi-daemon.service avahi-daemon.socket 2>/dev/null || true
+
+# ════════════════════════════════════════════════════════
+#  ANTI-ROOT: meno strade per diventare root
+# ════════════════════════════════════════════════════════
+
+# ── 1. sudo piu' severo ─────────────────────────────────
+# password chiesta di nuovo dopo 5 minuti, 3 tentativi, terminale separato (use_pty)
+# contro il "furto" del terminale, e registro di ogni comando in /var/log/sudo.log
+SUDOERS_NEFI=/etc/sudoers.d/50-nefi-hardening
+cat > "$SUDOERS_NEFI.tmp" << 'SUDO'
+# NEFI OS - sudo piu' severo
+Defaults use_pty
+Defaults logfile="/var/log/sudo.log"
+Defaults timestamp_timeout=5
+Defaults passwd_tries=3
+Defaults !visiblepw
+Defaults env_reset
+Defaults umask=0022
+Defaults umask_override
+SUDO
+chmod 0440 "$SUDOERS_NEFI.tmp"
+if visudo -cf "$SUDOERS_NEFI.tmp" > /dev/null 2>&1; then
+    mv "$SUDOERS_NEFI.tmp" "$SUDOERS_NEFI"
+    echo "[NEFI] sudo: regole severe attive"
+else
+    rm -f "$SUDOERS_NEFI.tmp"
+    echo "[NEFI] ATTENZIONE: regole sudo non valide, saltate"
+fi
+# regole NOPASSWD (sudo senza password): segnalate, non cancellate
+if grep -rqsE '^[^#]*NOPASSWD' /etc/sudoers /etc/sudoers.d/; then
+    echo "[NEFI] ATTENZIONE: trovate regole sudo NOPASSWD - controllale con: sudo grep -r NOPASSWD /etc/sudoers*"
+fi
+
+# ── 2. su solo per gli amministratori (gruppo sudo) ─────
+# pam_wheel: chi non e' nel gruppo sudo non puo' nemmeno provare "su"
+if [ -f /etc/pam.d/su ] && ! grep -qE '^[^#]*pam_wheel\.so' /etc/pam.d/su; then
+    sed -i -E '0,/^# *auth +required +pam_wheel\.so *$/s//auth       required   pam_wheel.so group=sudo/' /etc/pam.d/su
+    grep -qE '^[^#]*pam_wheel\.so' /etc/pam.d/su \
+        || sed -i '/^auth *sufficient *pam_rootok\.so/a auth       required   pam_wheel.so group=sudo' /etc/pam.d/su
+fi
+
+# ── 3. meno programmi SUID ──────────────────────────────
+# Un programma SUID parte con i poteri di root: ogni bug in uno di questi = root.
+# Tolgo il bit SUID a quelli che su una postazione Blue Team non servono.
+# dpkg-statoverride rende la scelta permanente anche dopo gli aggiornamenti.
+# Restano: sudo, su, passwd, pkexec, mount/umount, fusermount3, firejail,
+# e gli helper di polkit/dbus/unix_chkpwd (servono al desktop e al blocco schermo).
+for bin in /usr/bin/chfn /usr/bin/chsh /usr/bin/gpasswd /usr/bin/newgrp \
+           /usr/lib/openssh/ssh-keysign /usr/sbin/pppd /usr/lib/xorg/Xorg.wrap \
+           /usr/bin/ntfs-3g; do
+    [ -e "$bin" ] || continue
+    if ! dpkg-statoverride --list "$bin" > /dev/null 2>&1; then
+        dpkg-statoverride --update --add root root 0755 "$bin" 2>/dev/null \
+            && echo "[NEFI] SUID rimosso: $bin"
+    fi
+done
+
+# ── 4. namespace utente senza privilegi ─────────────────
+# Molti exploit recenti partono da "unshare -U" (un utente normale che si crea un
+# finto root dentro un namespace). Con AppArmor 4 si bloccano per tutti, tranne i
+# programmi che hanno un profilo che li autorizza (Firefox, Chromium, Flatpak, ...).
+if [ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]; then
+    cat > /etc/sysctl.d/92-nefi-userns.conf << 'USERNS'
+# NEFI OS - namespace utente solo per i programmi con un profilo AppArmor che li permette
+kernel.apparmor_restrict_unprivileged_userns = 1
+kernel.apparmor_restrict_unprivileged_unconfined = 1
+USERNS
+    echo "[NEFI] namespace utente: limitati da AppArmor"
+else
+    echo "[NEFI] namespace utente: questo kernel non ha il blocco di AppArmor (vedi verify-antiroot.sh)"
+fi
+
+# ── 5. niente core dump ─────────────────────────────────
+# un core dump di un processo di root puo' contenere password e chiavi
+mkdir -p /etc/security/limits.d /etc/systemd/coredump.conf.d
+echo '*    hard    core    0' > /etc/security/limits.d/90-nefi-nocore.conf
+printf '[Coredump]\nStorage=none\nProcessSizeMax=0\n' > /etc/systemd/coredump.conf.d/90-nefi.conf
+
+# ════════════════════════════════════════════════════════
+#  RACCOMANDAZIONI LYNIS
+# ════════════════════════════════════════════════════════
+
+# ── password e account (AUTH-9230, AUTH-9282, AUTH-9286, AUTH-9328) ──
+setdef() { # setdef <chiave> <valore>: imposta una voce di /etc/login.defs (i commenti restano)
+    sed -i -E "/^$1[[:space:]]/d" /etc/login.defs
+    printf '%s\t%s\n' "$1" "$2" >> /etc/login.defs
+}
+if [ -f /etc/login.defs ]; then
+    setdef PASS_MAX_DAYS 365
+    setdef PASS_MIN_DAYS 1
+    setdef PASS_WARN_AGE 14
+    setdef SHA_CRYPT_MIN_ROUNDS 65536
+    setdef SHA_CRYPT_MAX_ROUNDS 65536
+    setdef YESCRYPT_COST_FACTOR 8
+    setdef UMASK 027
+    setdef HOME_MODE 0700
+fi
+# stesse scadenze per gli utenti gia' creati dall'installer
+awk -F: '$3 >= 1000 && $3 < 60000 {print $1}' /etc/passwd | while read -r u; do
+    chage --maxdays 365 --mindays 1 --warndays 14 "$u" 2>/dev/null || true
+done
+# qualita' delle password (AUTH-9262): pam_pwquality
+mkdir -p /etc/security/pwquality.conf.d
+cat > /etc/security/pwquality.conf.d/50-nefi.conf << 'PWQ'
+# NEFI OS - quando un utente cambia la SUA password: almeno 12 caratteri e 3 tipi diversi
+# (minuscole, maiuscole, numeri, simboli).
+# NON c'e' "enforce_for_root": l'installer imposta la password del primo utente come root
+# alla fine dell'installazione; con quella opzione una password corta veniva rifiutata e
+# l'utente restava senza password e fuori dal gruppo sudo.
+minlen = 12
+minclass = 3
+maxrepeat = 3
+dictcheck = 1
+usercheck = 1
+PWQ
+
+# ── moduli del kernel che non servono (NETW-3200, STRG-1846, FIRE-4512) ──
+# protocolli di rete rari (bug storici) e FireWire (permette attacchi DMA alla memoria)
+cat > /etc/modprobe.d/nefi-blacklist.conf << 'MOD'
+# NEFI OS - moduli del kernel disattivati
+install dccp /bin/false
+install sctp /bin/false
+install rds /bin/false
+install tipc /bin/false
+install firewire-core /bin/false
+install firewire-ohci /bin/false
+install firewire-sbp2 /bin/false
+install thunderbolt-net /bin/false
+# il firewall di NEFI usa nftables: i vecchi moduli iptables non servono
+install ip_tables /bin/false
+install ip6_tables /bin/false
+install iptable_filter /bin/false
+install ip6table_filter /bin/false
+MOD
+
+# ── permessi piu' stretti (FILE-7524) ──
+[ -f /etc/crontab ] && chmod 600 /etc/crontab
+for d in /etc/cron.d /etc/cron.daily /etc/cron.hourly /etc/cron.weekly /etc/cron.monthly; do
+    [ -d "$d" ] && chmod 700 "$d"
+done
+[ -f /etc/ssh/sshd_config ] && chmod 600 /etc/ssh/sshd_config
+[ -f /boot/grub/grub.cfg ] && chmod 400 /boot/grub/grub.cfg
+
+# ── compilatori solo per gli amministratori (HRDN-7222) ──
+# chi entra come utente normale non puo' compilare un exploit sulla macchina
+for c in /usr/bin/x86_64-linux-gnu-as /usr/bin/x86_64-linux-gnu-gcc-[0-9]* /usr/bin/x86_64-linux-gnu-g++-[0-9]* \
+         /usr/bin/x86_64-linux-gnu-cpp-[0-9]* /usr/bin/tcc /usr/bin/clang-[0-9]*; do
+    [ -f "$c" ] && [ ! -L "$c" ] || continue
+    dpkg-statoverride --list "$c" > /dev/null 2>&1 \
+        || dpkg-statoverride --update --add root sudo 0750 "$c" 2>/dev/null
+done
+
+# ── registro dei processi e statistiche (ACCT-9622, ACCT-9626) ──
+systemctl enable acct.service 2>/dev/null || true
+[ -f /etc/default/sysstat ] && sed -i 's/^ENABLED=.*/ENABLED="true"/' /etc/default/sysstat
+systemctl enable sysstat.service 2>/dev/null || true
+
+# ── fail2ban con nftables (DEB-0880) ──
+# in jail.local (non in jail.d): non viene toccato dagli aggiornamenti di fail2ban (Lynis DEB-0880)
+mkdir -p /etc/fail2ban
+rm -f /etc/fail2ban/jail.d/50-nefi.local
+cat > /etc/fail2ban/jail.local << 'F2B'
+# NEFI OS - chi sbaglia la password 3 volte in 10 minuti viene bloccato per 1 ora
+[DEFAULT]
+banaction = nftables-multiport
+banaction_allports = nftables-allports
+backend = systemd
+maxretry = 3
+findtime = 10m
+bantime = 1h
+bantime.increment = true
+
+[sshd]
+enabled = true
+F2B
+systemctl enable fail2ban.service 2>/dev/null || true
+
+# ── debsums: controllo settimanale dei file dei pacchetti (PKGS-7370) ──
+if [ -f /etc/default/debsums ]; then
+    sed -i -E 's/^CRON_CHECK=.*/CRON_CHECK=weekly/' /etc/default/debsums
+fi
+
+# ── needrestart: dopo gli aggiornamenti elenca i servizi da riavviare, senza riavviarli da solo ──
+mkdir -p /etc/needrestart/conf.d
+echo "\$nrconf{restart} = 'l';" > /etc/needrestart/conf.d/50-nefi.conf
+
+# ── valutazione della sicurezza (Security Score e pagine System): all'avvio e ogni 30 minuti ──
+mkdir -p /var/lib/nefi/system
+systemctl enable nefi-assess.timer 2>/dev/null || true
+
+# ── baseline AIDE creata al primo avvio (FINT-4316) ──
+systemctl enable nefi-aide-init.service 2>/dev/null || true
+
+# ── controlli di Lynis non adatti a una postazione Blue Team ──
+# Ognuno e' coperto da un'altra difesa di NEFI (vedi commento).
+mkdir -p /etc/lynis
+cat > /etc/lynis/custom.prf << 'LYN'
+# NEFI OS - test di Lynis saltati, con il motivo
+# USB-1000: le chiavette non vengono disattivate a livello di driver perche' le controlla USB Guardian
+skip-test=USB-1000
+# LOGG-2154: una postazione singola non ha un server di log remoto (si attiva in azienda)
+skip-test=LOGG-2154
+# TOOL-5002: strumenti di automazione (Ansible, Puppet...) servono solo in un parco macchine
+skip-test=TOOL-5002
+LYN
+
+# applica subito (sul sistema installato; nella build live non serve)
+sysctl --system > /dev/null 2>&1 || true
 
 echo "[NEFI] Hardening completato."

@@ -4,7 +4,9 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QFrame,
     QScrollArea, QTextEdit, QMessageBox
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
+
+from nefi_theme import C, icon, icon_pixmap
 
 SCRIPT = "/opt/nefi/zerotrust/zerotrust.sh"
 
@@ -60,7 +62,7 @@ class StatusWorker(QThread):
 
 
 class PillarCard(QFrame):
-    def __init__(self, icon, title, desc):
+    def __init__(self, icon_name, title, desc):
         super().__init__()
         self.setMinimumHeight(110)
         self._set_border("#1a3a3f")
@@ -69,8 +71,9 @@ class PillarCard(QFrame):
         layout.setSpacing(4)
 
         top = QHBoxLayout()
-        icon_lbl = QLabel(icon)
-        icon_lbl.setStyleSheet("font-size: 20px; border: none;")
+        icon_lbl = QLabel()
+        icon_lbl.setPixmap(icon_pixmap(icon_name, C["accent"], 22))   # icona SVG del tema
+        icon_lbl.setStyleSheet("border: none;")
         top.addWidget(icon_lbl)
         top.addStretch()
         self.badge = QLabel("OFF")
@@ -172,7 +175,7 @@ class ZeroTrustWidget(QWidget):
         bl.addLayout(text)
         bl.addStretch()
 
-        self.activate_btn = QPushButton("⬡  Activate Zero Trust")
+        self.activate_btn = QPushButton("  Activate Zero Trust")
         self.activate_btn.setMinimumHeight(40)
         self.activate_btn.setStyleSheet("""
             QPushButton {
@@ -190,13 +193,13 @@ class ZeroTrustWidget(QWidget):
         # Pillars
         pillars = QHBoxLayout()
         pillars.setSpacing(12)
-        self.p_net = PillarCard("🧱", "Micro-segmentation",
+        self.p_net = PillarCard("wall", "Micro-segmentation",
                                 "Default-deny firewall. Outbound only DNS, HTTP/S, NTP, DHCP.")
-        self.p_exec = PillarCard("🚫", "Application Control",
+        self.p_exec = PillarCard("block", "Application Control",
                                  "No execution from /tmp and /dev/shm.")
-        self.p_ptrace = PillarCard("🛡", "Process Isolation",
+        self.p_ptrace = PillarCard("shield", "Process Isolation",
                                    "ptrace restricted to administrators.")
-        self.p_sudo = PillarCard("🔑", "Least Privilege",
+        self.p_sudo = PillarCard("key", "Least Privilege",
                                  "sudo requires password on every use.")
         for p in (self.p_net, self.p_exec, self.p_ptrace, self.p_sudo):
             pillars.addWidget(p)
@@ -220,7 +223,8 @@ class ZeroTrustWidget(QWidget):
             QPushButton:hover { background-color: #1ed98a; color: #061013; }
             QPushButton:disabled { color: #8fb0b2; border-color: #1a3a3f; }
         """
-        self.audit_btn = QPushButton("▶  Run Audit")
+        self.audit_btn = QPushButton("  Run Audit")
+        self.audit_btn.setIcon(icon("play", "#1ed98a", 12))
         self.audit_btn.setStyleSheet(btn_style)
         self.audit_btn.clicked.connect(self._run_audit)
         audit_row.addWidget(self.audit_btn)
@@ -258,10 +262,11 @@ class ZeroTrustWidget(QWidget):
     def _set_banner(self, active):
         if active:
             self.banner.setStyleSheet("QFrame { background-color: #0b2a26; border: 2px solid #1ed98a; border-radius: 10px; }")
-            self.banner_title.setText("⬡  ZERO TRUST ACTIVE")
+            self.banner_title.setText("ZERO TRUST ACTIVE")
             self.banner_title.setStyleSheet("color: #1ed98a; font-size: 16px; font-weight: bold; border: none;")
             self.banner_sub.setStyleSheet("color: #5fd6a4; font-size: 11px; border: none;")
-            self.activate_btn.setText("✕  Deactivate Zero Trust")
+            self.activate_btn.setText("  Deactivate Zero Trust")
+            self.activate_btn.setIcon(icon("x", "#ff6b6b", 16))
             self.activate_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #ff6b6b22; color: #ff6b6b; border: 1px solid #ff6b6b;
@@ -275,7 +280,8 @@ class ZeroTrustWidget(QWidget):
             self.banner_title.setText("ZERO TRUST INACTIVE")
             self.banner_title.setStyleSheet("color: #e0e0e0; font-size: 16px; font-weight: bold; border: none;")
             self.banner_sub.setStyleSheet("color: #8fb0b2; font-size: 11px; border: none;")
-            self.activate_btn.setText("⬡  Activate Zero Trust")
+            self.activate_btn.setText("  Activate Zero Trust")
+            self.activate_btn.setIcon(icon("shield", "#061013", 16))
             self.activate_btn.setStyleSheet("""
                 QPushButton {
                     background-color: #1ed98a; color: #061013; border: none;

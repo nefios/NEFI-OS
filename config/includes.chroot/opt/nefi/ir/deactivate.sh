@@ -4,15 +4,14 @@ set -e
 
 echo "[NEFI-IR] Deactivating Incident Response Mode..."
 
-# Ripristina rete
-if [ -f /var/lib/nefi/ir/nftables-backup.conf ]; then
-    nft -f /var/lib/nefi/ir/nftables-backup.conf 2>/dev/null || true
-    echo "[NEFI-IR] Network rules restored from backup."
-else
-    nft flush ruleset
-    systemctl restart nftables 2>/dev/null || true
-    echo "[NEFI-IR] Network rules reset to default."
+# Ripristina rete: basta togliere la tabella di isolamento, il firewall di base e' intatto
+nft delete table inet nefi_ir 2>/dev/null || true
+rm -f /var/lib/nefi/ir/nftables-backup.conf
+if ! nft list table inet filter > /dev/null 2>&1; then
+    # firewall di base assente (es. caricato a mano da qualcuno): lo ricarico
+    nft -f /etc/nftables.conf 2>/dev/null || systemctl restart nftables 2>/dev/null || true
 fi
+echo "[NEFI-IR] Isolation removed — base firewall active."
 
 # Rimuovi immutabilità log
 chattr -i /var/log/syslog 2>/dev/null || true
