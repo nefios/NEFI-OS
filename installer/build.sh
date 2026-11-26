@@ -1,10 +1,10 @@
 #!/bin/bash
 # NEFI OS - build completa dell'installer con un solo comando:
 # 0. pacchetti NEFI  1. metadati firmware (dep11)  2. simple-cdd  3. grafica NEFI  4. controlli
-# Uso: ./build.sh   oppure   NEFI_VERSION=0.3 ./build.sh
+# Uso: ./build.sh   oppure   NEFI_VERSION=0.4 ./build.sh
 set -uo pipefail
 cd "$(dirname "$0")"
-VERSION="${NEFI_VERSION:-0.3}"
+VERSION="${NEFI_VERSION:-0.4}"
 DIST="trixie"
 LOG="$HOME/nefi-installer-build.log"
 BASE_ISO="images/debian-13-amd64-DVD-1.iso"

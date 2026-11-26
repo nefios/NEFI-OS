@@ -1,6 +1,6 @@
 #!/bin/bash
 echo "[NEFI] Applying branding..."
-NEFI_VERSION="0.3"   # versione usata solo se manca il pacchetto nefi-branding (ISO live)
+NEFI_VERSION="0.4"   # versione usata solo se manca il pacchetto nefi-branding (ISO live)
 
 # Identità del sistema: NEFI OS, compatibile Debian.
 # Sul sistema installato /usr/lib/os-release arriva dal pacchetto nefi-branding:
