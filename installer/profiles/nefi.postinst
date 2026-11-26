@@ -1,3 +1,39 @@
 #!/bin/sh
 # Eseguito dentro il sistema installato, alla fine dell'installazione
-echo "NEFI OS 0.3" > /etc/nefi-version
+echo "NEFI OS 0.4" > /etc/nefi-version
+
+# Btrfs: compressione zstd e snapshot automatici con Snapper
+if [ "$(stat -f -c %T /)" = "btrfs" ]; then
+  sed -i -E '/[[:space:]]\/[[:space:]]+btrfs/ s/defaults/defaults,noatime,compress=zstd:1/' /etc/fstab
+  if command -v snapper >/dev/null 2>&1; then
+    snapper --no-dbus -c root create-config / || true
+    snapper --no-dbus -c root set-config TIMELINE_LIMIT_HOURLY=5 TIMELINE_LIMIT_DAILY=7 \
+      TIMELINE_LIMIT_WEEKLY=2 TIMELINE_LIMIT_MONTHLY=0 TIMELINE_LIMIT_YEARLY=0 NUMBER_LIMIT=10 || true
+    snapper --no-dbus -c root create --description "NEFI OS installata" --cleanup-algorithm number || true
+  fi
+fi
+
+# Suricata: Debian lo configura su eth0, uso la scheda reale (route predefinita, altrimenti la prima cablata)
+if [ -f /etc/suricata/suricata.yaml ]; then
+  IF=$(ip route show default 2>/dev/null | awk '{print $5; exit}')
+  [ -n "$IF" ] || IF=$(ls /sys/class/net | grep -E '^(en|eth)' | head -1)
+  [ -n "$IF" ] && sed -i "s/- interface: eth0/- interface: $IF/" /etc/suricata/suricata.yaml
+fi
+
+# ClamAV: basta il servizio clamav-freshclam; il timer "once" va in conflitto sul file di log
+systemctl disable clamav-freshclam-once.service clamav-freshclam-once.timer 2>/dev/null || true
+
+# ClamAV: al primo avvio freshclam scarica le firme dopo l'avvio di clamd, che altrimenti resta spento
+if [ -f /usr/lib/systemd/system/clamav-daemon.service ] || [ -f /lib/systemd/system/clamav-daemon.service ]; then
+  mkdir -p /etc/systemd/system/clamav-daemon.service.d
+  cat > /etc/systemd/system/clamav-daemon.service.d/nefi-wait-signatures.conf << 'EOT'
+# NEFI: aspettare le firme invece di saltare l'avvio
+[Unit]
+ConditionPathExistsGlob=
+After=clamav-freshclam.service
+
+[Service]
+ExecStartPre=/bin/sh -c 'for i in $$(seq 120); do ls /var/lib/clamav/main.c?d >/dev/null 2>&1 && exit 0; sleep 5; done; echo "firme ClamAV non disponibili"; exit 1'
+TimeoutStartSec=11min
+EOT
+fi

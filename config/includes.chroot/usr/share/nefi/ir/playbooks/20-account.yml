@@ -1,0 +1,42 @@
+id: account-compromise
+title: Compromised account or unauthorized login
+description: Someone logged in who should not have (unknown SSH login, password guessed, new administrator account, stolen key).
+categories: [account-compromise, unauthorized-access]
+steps:
+  - id: confirm
+    phase: Identification
+    title: Confirm the login
+    help: DFIR > Timeline with the source "Logins, sudo, PAM" shows who logged in, from which address and what they ran with sudo. Note the account and the source address in the incident.
+    page: timeline
+  - id: evidence
+    phase: Evidence
+    title: Collect live evidence
+    help: Do it before changing anything - sessions, processes of that user, authentication logs.
+    action: collect-evidence
+    page: evidence
+  - id: block-source
+    phase: Containment
+    title: Block the source address
+    help: Add the address the login came from in Response > Containment > Indicators. If you do not know it, or the attacker may still be connected, isolate the machine instead.
+    page: contain
+  - id: sessions
+    phase: Containment
+    title: End the sessions of the account
+    help: In Response > Containment filter the processes by that user and terminate its shells and sshd sessions. Then lock the account from a terminal with  sudo passwd -l NAME  until its password is changed.
+    page: contain
+  - id: keys
+    phase: Eradication
+    title: Check SSH keys, sudo rights and new accounts
+    help: Detection > Integrity & Persistence shows new authorized_keys entries, sudoers changes and accounts created since the baseline. Remove what you did not add.
+    page: baseline
+  - id: passwords
+    phase: Eradication
+    title: Change passwords and keys
+    help: Change the password of the account and of every account that shares it, on this machine and elsewhere. Replace the SSH keys that were stored here. Turn off SSH password login in Prevention > SSH Security.
+    page: sshsec
+  - id: recover
+    phase: Recovery
+    title: Run the recovery checklist
+    help: Verifies that system files were not replaced and that monitoring is running.
+    action: recovery-check
+    page: recovery

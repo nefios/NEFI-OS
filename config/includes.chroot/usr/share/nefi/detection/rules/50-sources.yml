@@ -1,0 +1,27 @@
+# NEFI OS - avvisi degli strumenti integrati, portati nello stesso elenco con la mappatura MITRE.
+title: Falco runtime alert
+id: nefi-falco-alert
+description: Falco (kernel eBPF runtime detection) matched one of its rules. The MITRE ATT&CK mapping comes from the Falco rule tags.
+level: medium
+logsource: {product: linux, service: falco}
+detection:
+  selection: {Level: [critical, high, medium, low]}
+  condition: selection
+nefi_title: 'Falco: {FalcoRule}'
+nefi_level_from: Level
+nefi_mitre_from_tags: true
+nefi_dedup: [FalcoRule, Image, TargetFilename]
+---
+title: Network intrusion detection alert
+id: nefi-suricata-alert
+description: Suricata matched a network signature of high or medium severity.
+level: medium
+tags: [attack.command_and_control]
+logsource: {product: linux, service: suricata}
+detection:
+  selection: {category: ids, Level: [high, medium]}
+  condition: selection
+nefi_title: 'Network IDS: {Signature}'
+nefi_level_from: Level
+nefi_mitre_from_tags: true
+nefi_dedup: [Signature, SourceIp, DestinationIp]

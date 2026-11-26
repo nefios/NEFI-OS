@@ -40,6 +40,7 @@ CATEGORIES = {
     "services":  "Security Services",
     "packages":  "Package Security",
     "config":    "Configuration Audit",
+    "ssh":       "SSH Security",
     "backup":    "Backup & Recovery",
     "updates":   "Update Health",
 }
@@ -106,11 +107,14 @@ def R(status, evidence, method=""):
 
 # ── registro dei controlli ──────────────────────────────────────────────
 CHECKS = []   # (id, categoria, titolo, peso, ttl_secondi, funzione, perche')
+FIXES = {}    # id del controllo -> id della correzione (eseguita da /opt/nefi/prevention/fix.py)
 
 
-def check(cid, cat, title, weight, why, ttl=0):
+def check(cid, cat, title, weight, why, ttl=0, fix=None):
     def deco(fn):
         CHECKS.append((cid, cat, title, weight, ttl, fn, why))
+        if fix:
+            FIXES[cid] = fix
         return fn
     return deco
 
@@ -289,7 +293,7 @@ SYSCTL_CHECKS = [
 
 
 def _mk_sysctl(key, want, op, weight, title, why):
-    @check("sysctl." + key, "kernel", title, weight, why)
+    @check("sysctl." + key, "kernel", title, weight, why, fix="sysctl:" + key)
     def _():
         v = sysctl(key)
         if v is None:
@@ -341,7 +345,7 @@ def _():
 
 
 @check("kernel.modules_blacklist", "kernel", "Risky kernel modules blocked", 2,
-       "Rare network protocols and FireWire have a long history of kernel bugs and DMA attacks.")
+       "Rare network protocols and FireWire have a long history of kernel bugs and DMA attacks.", fix="modules")
 def _():
     blocked, open_ = [], []
     for mod in ("dccp", "sctp", "rds", "tipc", "firewire-core"):
@@ -351,6 +355,41 @@ def _():
         return R("pass", f"blocked: {', '.join(blocked)}", "modprobe -n -v")
     return R("warn", f"loadable: {', '.join(open_)}; blocked: {', '.join(blocked) or 'none'}", "modprobe -n -v")
 
+
+
+WEAK_CMDLINE = ("mitigations=off", "nopti", "nospectre_v1", "nospectre_v2", "spectre_v2=off",
+                "nokaslr", "noexec=off", "kpti=0", "pti=off", "l1tf=off", "mds=off", "tsx_async_abort=off",
+                "retbleed=off", "lockdown=none", "module.sig_enforce=0", "apparmor=0", "audit=0")
+
+
+@check("kernel.cmdline", "kernel", "No protections disabled at boot", 4,
+       "Boot options such as mitigations=off or apparmor=0 silently switch off kernel defences.")
+def _():
+    cmd = (read("/proc/cmdline", "") or "").split()
+    bad = [o for o in cmd if o in WEAK_CMDLINE]
+    return R("fail" if bad else "pass", ("Disabled at boot: " + ", ".join(bad)) if bad else
+             "No protection disabled on the kernel command line", "/proc/cmdline")
+
+
+TAINT = {0: "proprietary module", 1: "module force-loaded", 2: "unsafe SMP", 3: "module force-unloaded",
+         4: "machine check", 5: "bad page", 6: "taint requested by user", 7: "kernel died recently",
+         8: "ACPI table overridden", 9: "kernel warning", 10: "staging driver", 11: "firmware workaround",
+         12: "out-of-tree module", 13: "unsigned module", 14: "soft lockup", 15: "live patched",
+         16: "auxiliary taint", 17: "struct randomization plugin", 18: "in-kernel test"}
+
+
+@check("kernel.taint", "kernel", "Kernel not tainted by unsigned or out-of-tree code", 2,
+       "Unsigned or out-of-tree modules run with full kernel privileges and are not verified by Debian.")
+def _():
+    v = (read("/proc/sys/kernel/tainted", "") or "").strip()
+    if not v.isdigit():
+        return R("unknown", "/proc/sys/kernel/tainted not readable", "/proc/sys/kernel/tainted")
+    n = int(v)
+    if n == 0:
+        return R("pass", "Kernel not tainted (0)", "/proc/sys/kernel/tainted")
+    flags = [TAINT.get(b, f"bit {b}") for b in range(32) if n >> b & 1]
+    serious = n & ((1 << 0) | (1 << 1) | (1 << 3) | (1 << 12) | (1 << 13))
+    return R("fail" if serious else "warn", f"tainted={n}: {', '.join(flags)}", "/proc/sys/kernel/tainted")
 
 # ════════════════════════ INTEGRITY ════════════════════════
 @check("int.aide_db", "integrity", "AIDE baseline exists and is recent", 4,
@@ -482,6 +521,38 @@ def _():
              "systemctl / pgrep falco")
 
 
+@check("svc.detection", "services", "NEFI detection engine working", 5,
+       "Applies the detection rules to kernel audit events and watches files, persistence, accounts and "
+       "ports against the approved baseline.")
+def _():
+    if not os.path.exists("/opt/nefi/detection/detectd.py"):
+        return R("unknown", "Detection engine not installed", "/opt/nefi/detection")
+    act = svc_active("nefi-detectd.service")
+    try:
+        with open("/var/lib/nefi/detection/status.json") as f:
+            st = json.load(f)
+        age = time.time() - os.path.getmtime("/var/lib/nefi/detection/status.json")
+    except (OSError, ValueError):
+        st, age = {}, None
+    if not act or age is None or age > 300:
+        return R("fail", f"service {'active' if act else 'not active'}, "
+                         f"{'no status file' if age is None else f'last status {int(age)} s ago'}",
+                 "systemctl is-active nefi-detectd; /var/lib/nefi/detection/status.json")
+    rules = sum(1 for r in st.get("rules", []) if r.get("enabled"))
+    audit_ok = st.get("sources", {}).get("auditd", {}).get("available")
+    chain = st.get("log_chain", {})
+    base = st.get("baseline", {})
+    ev = (f"service active, {rules} rules enabled, kernel audit {'connected' if audit_ok else 'NOT available'}, "
+          f"baseline {base.get('items', 0)} items ({base.get('pending', 0)} changes pending), "
+          f"alert log {'intact' if chain.get('ok', True) else 'TAMPERED: ' + str(chain.get('message'))}")
+    method = "nefi-detectd status file (rules, sources, baseline, hash chain of the alert log)"
+    if not chain.get("ok", True):
+        return R("fail", ev, method)
+    if not audit_ok or not rules or not base.get("items"):
+        return R("warn", ev, method)
+    return R("pass", ev, method)
+
+
 @check("svc.crowdsec", "services", "CrowdSec engine and firewall bouncer working", 4,
        "Blocks hostile addresses automatically; the bouncer must be connected to the engine.")
 def _():
@@ -602,29 +673,6 @@ def _():
     return R("fail", f"/ on {src}: not on an encrypted device", "findmnt / lsblk -s")
 
 
-@check("cfg.ssh", "config", "SSH server hardened (or not installed)", 5,
-       "An exposed SSH server must refuse root and limit login attempts.")
-def _():
-    if not os.path.exists("/usr/sbin/sshd"):
-        return R("pass", "SSH server not installed: nothing exposed", "/usr/sbin/sshd")
-    rc, out, err = run(["sshd", "-T"], 15)
-    if rc != 0:
-        return R("unknown", f"sshd -T failed: {err.strip()[:150]}", "sshd -T")
-    conf = dict(l.split(None, 1) for l in out.splitlines() if " " in l)
-    problems = []
-    if conf.get("permitrootlogin") not in ("no",):
-        problems.append(f"permitrootlogin {conf.get('permitrootlogin')}")
-    if int(conf.get("maxauthtries", "6")) > 4:
-        problems.append(f"maxauthtries {conf.get('maxauthtries')}")
-    if conf.get("x11forwarding") == "yes":
-        problems.append("x11forwarding yes")
-    if conf.get("permitemptypasswords") == "yes":
-        problems.append("permitemptypasswords yes")
-    ev = (f"permitrootlogin={conf.get('permitrootlogin')}, maxauthtries={conf.get('maxauthtries')}, "
-          f"passwordauthentication={conf.get('passwordauthentication')}, x11forwarding={conf.get('x11forwarding')}")
-    return R("fail" if problems else "pass", ("Problems: " + ", ".join(problems) + "\n" if problems else "") + ev, "sshd -T")
-
-
 @check("cfg.sudo", "config", "sudo hardened (no NOPASSWD, logging, use_pty)", 5,
        "Passwordless sudo turns any compromised user account into root.")
 def _():
@@ -700,6 +748,151 @@ def _():
              ("Only SSH listens on the network" if allowed else "No service listens on the network"),
              "ss -tulnp")
 
+
+
+# ════════════════════════ SSH ════════════════════════
+_SSHD = {}
+
+
+def sshd_conf():
+    """Configurazione EFFETTIVA di sshd (sshd -T), letta una volta per esecuzione.
+    None = server SSH non installato; {} = sshd -T fallito."""
+    if "conf" not in _SSHD:
+        if not os.path.exists("/usr/sbin/sshd"):
+            _SSHD["conf"] = None
+        else:
+            rc, out, err = run(["sshd", "-T"], 15)
+            _SSHD["conf"] = {k.lower(): v for k, v in
+                             (l.split(None, 1) for l in out.splitlines() if " " in l)} if rc == 0 else {}
+            _SSHD["err"] = err.strip()[:200]
+    return _SSHD["conf"]
+
+
+def ssh_check(cid, title, weight, why, test, fix=None):
+    """Controllo SSH: test(conf) -> (stato, prova). Se sshd non e' installato: nulla da esporre."""
+    @check("ssh." + cid, "ssh", title, weight, why, fix=fix)
+    def _():
+        conf = sshd_conf()
+        if conf is None:
+            return R("pass", "SSH server not installed: nothing exposed", "/usr/sbin/sshd")
+        if not conf:
+            return R("unknown", f"sshd -T failed: {_SSHD.get('err', '')}", "sshd -T")
+        st, ev = test(conf)
+        return R(st, ev, "sshd -T (effective configuration)")
+
+
+def _is(opt, good, bad_status="fail"):
+    return lambda c: ("pass" if c.get(opt) in good else bad_status, f"{opt} {c.get(opt)}")
+
+
+def _max(opt, limit, bad_status="fail"):
+    def t(c):
+        try:
+            v = int(str(c.get(opt, "0")).rstrip("s"))
+        except ValueError:
+            return "unknown", f"{opt} {c.get(opt)}"
+        return ("pass" if 0 < v <= limit else bad_status), f"{opt} {v} (recommended <= {limit})"
+    return t
+
+
+ssh_check("root_login", "Root cannot log in over SSH", 5,
+          "Attackers always try 'root' first; administrators should log in as themselves and use sudo.",
+          _is("permitrootlogin", ("no",)), fix="ssh:PermitRootLogin")
+ssh_check("empty_passwords", "Empty passwords refused", 5,
+          "An account without a password would be open to anyone over the network.",
+          _is("permitemptypasswords", ("no",)), fix="ssh:PermitEmptyPasswords")
+ssh_check("password_auth", "Key-only authentication (no passwords)", 3,
+          "Passwords can be guessed or reused; SSH keys cannot be brute-forced.",
+          _is("passwordauthentication", ("no",), "warn"), fix="ssh:PasswordAuthentication")
+ssh_check("max_auth_tries", "Few login attempts per connection", 2,
+          "Limits password guessing on each connection.",
+          _max("maxauthtries", 4), fix="ssh:MaxAuthTries")
+ssh_check("login_grace", "Short login time window", 1,
+          "Unauthenticated connections are dropped quickly, limiting resource exhaustion.",
+          _max("logingracetime", 60, "warn"), fix="ssh:LoginGraceTime")
+ssh_check("x11", "X11 forwarding disabled", 1,
+          "Forwarded X11 sessions let a compromised server spy on the client's display.",
+          _is("x11forwarding", ("no",), "warn"), fix="ssh:X11Forwarding")
+ssh_check("tcp_forwarding", "TCP forwarding disabled", 1,
+          "Port forwarding turns the server into a pivot point into the network.",
+          _is("allowtcpforwarding", ("no",), "warn"), fix="ssh:AllowTcpForwarding")
+ssh_check("agent_forwarding", "Agent forwarding disabled", 1,
+          "A compromised server could use a forwarded SSH agent to reach other machines.",
+          _is("allowagentforwarding", ("no",), "warn"), fix="ssh:AllowAgentForwarding")
+ssh_check("log_level", "Detailed SSH logging", 1,
+          "VERBOSE logging records the key used for each login (needed for investigations).",
+          _is("loglevel", ("VERBOSE", "INFO"), "warn"), fix="ssh:LogLevel")
+
+
+def _idle(c):
+    try:
+        iv, cm = int(c.get("clientaliveinterval", "0")), int(c.get("clientalivecountmax", "3"))
+    except ValueError:
+        return "unknown", "client alive values not readable"
+    ok = 0 < iv <= 900 and cm <= 3
+    return ("pass" if ok else "warn"), f"clientaliveinterval {iv}, clientalivecountmax {cm}"
+
+
+ssh_check("idle_timeout", "Idle sessions are closed", 1,
+          "Abandoned sessions left open can be hijacked.", _idle, fix="ssh:ClientAlive")
+
+WEAK_ALGS = ("cbc", "arcfour", "3des", "blowfish", "cast128", "hmac-md5",
+             "diffie-hellman-group1-", "diffie-hellman-group14-sha1", "diffie-hellman-group-exchange-sha1")
+
+
+def _crypto(c):
+    algs = {k: c.get(k, "").split(",") for k in ("ciphers", "macs", "kexalgorithms")}
+    weak = [f"{k}: {a}" for k, lst in algs.items() for a in lst if any(w in a for w in WEAK_ALGS)]
+    sha1 = [f"macs: {a}" for a in algs["macs"] if "hmac-sha1" in a or "umac-64" in a]
+    if weak:
+        return "fail", "Weak algorithms enabled: " + ", ".join(weak)
+    if sha1:
+        return "warn", "Short or SHA-1 MACs still enabled: " + ", ".join(sha1)
+    return "pass", "Only modern ciphers, MACs and key exchanges"
+
+
+ssh_check("crypto", "Only strong ciphers and key exchange", 4,
+          "Old algorithms (CBC, SHA-1, small Diffie-Hellman groups) weaken the encryption of the session.",
+          _crypto, fix="ssh:Crypto")
+
+
+@check("ssh.authorized_keys", "ssh", "authorized_keys files protected", 3,
+       "If another user can write your authorized_keys, they can add their own key and log in as you.")
+def _():
+    if sshd_conf() is None:
+        return R("pass", "SSH server not installed: nothing exposed", "/usr/sbin/sshd")
+    bad, seen = [], 0
+    for line in (read("/etc/passwd", "") or "").splitlines():
+        f = line.split(":")
+        if len(f) < 7 or not f[5].startswith("/"):
+            continue
+        for path in (os.path.join(f[5], ".ssh"), os.path.join(f[5], ".ssh", "authorized_keys")):
+            try:
+                st = os.stat(path)
+            except OSError:
+                continue
+            seen += 1
+            mode = stat.S_IMODE(st.st_mode)
+            if mode & 0o022 or st.st_uid not in (0, int(f[2])):
+                bad.append(f"{path} {oct(mode)}")
+    if bad:
+        return R("fail", "Writable by others: " + ", ".join(bad[:10]), "stat ~/.ssh")
+    return R("pass", f"{seen} .ssh paths checked, none writable by other users", "stat ~/.ssh")
+
+
+@check("ssh.fail2ban", "ssh", "Brute-force protection for SSH", 2,
+       "fail2ban (or CrowdSec) bans addresses that repeatedly fail to log in.")
+def _():
+    if sshd_conf() is None:
+        return R("pass", "SSH server not installed: nothing exposed", "/usr/sbin/sshd")
+    rc, out, _ = run(["fail2ban-client", "status", "sshd"], 10)
+    if rc == 0 and "Currently banned" in out:
+        m = re.search(r"Currently banned:\s*(\d+)", out)
+        return R("pass", f"fail2ban sshd jail active ({m.group(1) if m else '?'} currently banned)",
+                 "fail2ban-client status sshd")
+    if svc_active("crowdsec.service") and os.path.exists("/etc/crowdsec/acquis.d/setup.sshd.yaml"):
+        return R("pass", "CrowdSec monitors SSH logins", "crowdsec acquisition setup.sshd.yaml")
+    return R("fail", "No fail2ban sshd jail and no CrowdSec SSH monitoring", "fail2ban-client / crowdsec")
 
 # ════════════════════════ BACKUP ════════════════════════
 @check("bk.snapshots", "backup", "Recent system snapshot or backup", 5,
@@ -800,6 +993,220 @@ def _():
     return R("pass" if code in supported else "warn", f"Debian codename: {code}", "/etc/os-release")
 
 
+
+# ════════════════════════ VULNERABILITA' (CVE) ════════════════════════
+VULNS = os.path.join(OUT_DIR, "vulns.json")
+SURFACE = os.path.join(OUT_DIR, "surface.json")
+DEBSECAN_RE = re.compile(r"^(?P<id>(?:CVE-\d{4}-\d+|TEMP-\S+|OVE-\S+))\s+(?P<pkg>\S+)(?:\s+\((?P<flags>[^)]*)\))?")
+
+
+KEV_URL = "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json"
+KEV_MIRROR = "https://raw.githubusercontent.com/cisagov/kev-data/develop/known_exploited_vulnerabilities.json"
+KEV_CACHE = os.path.join(OUT_DIR, "kev.json")     # (il secondo indirizzo e' la copia ufficiale CISA su GitHub)
+
+
+def load_kev(max_age=86400):
+    """Catalogo CISA "Known Exploited Vulnerabilities": le CVE che qualcuno sta DAVVERO sfruttando.
+    Scaricato al massimo una volta al giorno; senza rete si usa l'ultima copia. -> (insieme di CVE, info)"""
+    try:
+        age = time.time() - os.path.getmtime(KEV_CACHE)
+    except OSError:
+        age = None
+    error = None
+    if age is None or age > max_age:
+        import urllib.request
+        for url in (KEV_URL, KEV_MIRROR):
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "nefi-os-security-center"})
+                with urllib.request.urlopen(req, timeout=30) as r:
+                    raw = r.read(40 * 1024 * 1024)
+                doc = json.loads(raw)
+                ids = sorted({v["cveID"] for v in doc.get("vulnerabilities", [])
+                              if re.fullmatch(r"CVE-\d{4}-\d+", v.get("cveID", ""))})
+                if len(ids) < 100:
+                    raise ValueError("catalogue smaller than expected")
+                write_atomic(KEV_CACHE, {"downloaded": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "source": url,
+                                         "catalog_version": doc.get("catalogVersion"), "cves": ids})
+                error = None
+                break
+            except Exception as e:       # niente rete: tengo la copia vecchia, se c'e'
+                error = f"{type(e).__name__}: {e}"[:160]
+    try:
+        with open(KEV_CACHE) as f:
+            kev = json.load(f)
+        return set(kev.get("cves", [])), {"available": True, "count": len(kev.get("cves", [])),
+                                          "downloaded": kev.get("downloaded"), "error": error}
+    except (OSError, ValueError):
+        return set(), {"available": False, "count": 0, "downloaded": None,
+                       "error": error or "catalogue not downloaded yet"}
+
+
+def vuln_priority(item):
+    """1 = da correggere subito ... 5 = puo' aspettare. Conta il rischio reale, non solo la gravita' teorica."""
+    if item.get("kev"):
+        return 1                                    # sfruttata attivamente nel mondo
+    if item.get("remote") and item.get("exposed"):
+        return 2                                    # attaccabile da remoto E il servizio e' raggiungibile
+    if item.get("remote") and item.get("urgency") == "high":
+        return 2
+    if item.get("remote") or item.get("urgency") == "high":
+        return 3
+    if item.get("urgency") == "medium":
+        return 4
+    return 5
+
+
+def collect_vulns(exposed_packages=None):
+    """Elenco CVE dei pacchetti installati (Debian Security Tracker via debsecan), con priorita' di rischio:
+    catalogo CISA KEV (sfruttate davvero) e pacchetti dei servizi raggiungibili dalla rete."""
+    if exposed_packages is None:
+        try:
+            exposed_packages = {l.get("package") for l in collect_surface().get("listening", [])
+                                if l.get("exposure") == "reachable from the network" and l.get("package")}
+        except Exception:
+            exposed_packages = set()
+    osr = read("/etc/os-release", "") or ""
+    m = re.search(r"^VERSION_CODENAME=(\S+)", osr, re.M)
+    suite = m.group(1) if m else "trixie"
+    data = {"generated": time.strftime("%Y-%m-%dT%H:%M:%S%z"), "suite": suite, "source": "debsecan",
+            "available": have("debsecan"), "error": None, "items": []}
+    kev, data["kev"] = load_kev()
+    if not data["available"]:
+        data["error"] = "debsecan is not installed"
+        return data
+    rc, out, err = run(["debsecan", f"--suite={suite}", "--format=summary"], 300)
+    if rc != 0:
+        data["error"] = f"debsecan failed (needs Internet): {err.strip()[:200]}"
+        return data
+    rc2, fixed_out, _ = run(["debsecan", f"--suite={suite}", "--only-fixed", "--format=summary"], 300)
+    fixed = {(mm.group("id"), mm.group("pkg")) for mm in map(DEBSECAN_RE.match, fixed_out.splitlines()) if mm}
+    for line in out.splitlines():
+        mm = DEBSECAN_RE.match(line.strip())
+        if not mm:
+            continue
+        flags = (mm.group("flags") or "").lower()
+        urgency = next((u for u in ("high", "medium", "low") if f"{u} urgency" in flags), "unknown")
+        data["items"].append({
+            "id": mm.group("id"), "package": mm.group("pkg"),
+            "remote": "remotely exploitable" in flags,
+            "urgency": urgency,
+            "fix_available": (mm.group("id"), mm.group("pkg")) in fixed or "fixed" in flags.split(", "),
+            "flags": mm.group("flags") or "",
+        })
+    for item in data["items"]:
+        item["kev"] = item["id"] in kev
+        item["exposed"] = item["package"] in exposed_packages
+        item["priority"] = vuln_priority(item)
+    data["exposed_packages"] = sorted(exposed_packages)
+    return data
+
+
+# ════════════════════════ SUPERFICIE D'ATTACCO ════════════════════════
+def _fw_allowed_ports():
+    """Porte accettate in ingresso dal firewall (catene input con 'dport ... accept')."""
+    rc, out, _ = run(["nft", "list", "ruleset"], 15)
+    ports = set()
+    for line in out.splitlines():
+        if "accept" not in line or "dport" not in line:
+            continue
+        m = re.search(r"dport\s+(\{[^}]*\}|\S+)", line)
+        if not m:
+            continue
+        for tok in re.split(r"[\s,{}]+", m.group(1)):
+            if tok.isdigit():
+                ports.add(int(tok))
+            elif re.fullmatch(r"\d+-\d+", tok):
+                a, b = map(int, tok.split("-"))
+                ports.update(range(a, min(b, a + 2000) + 1))
+    has_drop = "policy drop" in out
+    return ports, has_drop
+
+
+def _owner_pkg(path, cache={}):
+    if not path:
+        return ""
+    if path not in cache:
+        rc, out, _ = run(["dpkg-query", "-S", path], 10)
+        cache[path] = out.split(":")[0] if rc == 0 else "(not from a package)"
+    return cache[path]
+
+
+def collect_surface():
+    data = {"generated": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
+    allowed, has_drop = _fw_allowed_ports()
+    rc, out, _ = run(["ss", "-H", "-tulnpe"], 15)
+    listen = []
+    for l in out.splitlines():
+        p = l.split()
+        if len(p) < 5:
+            continue
+        proto, local = p[0], p[4]
+        host, _, port = local.rpartition(":")
+        loopback = host.startswith(("127.", "[::1]", "::1")) or host.endswith("%lo")
+        pm = re.search(r'users:\(\("([^"]+)",pid=(\d+)', l)
+        um = re.search(r"uid:(\d+)", l)
+        proc, pid = (pm.group(1), pm.group(2)) if pm else ("?", None)
+        exe = os.path.realpath(f"/proc/{pid}/exe") if pid and os.path.exists(f"/proc/{pid}/exe") else ""
+        try:
+            portn = int(port)
+        except ValueError:
+            portn = None
+        if loopback:
+            exposure = "local only"
+        elif portn in allowed or not has_drop:
+            exposure = "reachable from the network"
+        else:
+            exposure = "blocked by firewall"
+        user = "?"
+        if um:
+            try:
+                import pwd
+                user = pwd.getpwuid(int(um.group(1))).pw_name
+            except (KeyError, ValueError):
+                user = um.group(1)
+        listen.append({"proto": proto, "address": local, "port": portn, "process": proc, "user": user,
+                       "exe": exe, "package": _owner_pkg(exe), "exposure": exposure})
+    data["listening"] = listen
+    rc, out, _ = run(["systemctl", "list-unit-files", "--type=service", "--state=enabled", "--no-legend"], 15)
+    data["enabled_services"] = sorted(l.split()[0] for l in out.splitlines() if l.strip())
+    rc, out, _ = run(["systemctl", "list-units", "--type=service", "--state=running", "--no-legend", "--plain"], 15)
+    data["running_services"] = sorted(l.split()[0] for l in out.splitlines() if l.strip())
+    rc, out, _ = run(["systemctl", "list-timers", "--all", "--no-legend", "--plain"], 15)
+    data["timers"] = sorted({w for l in out.splitlines() for w in l.split() if w.endswith(".timer")})
+    accounts = []
+    sudo_members = set()
+    try:
+        sudo_members = set(grp.getgrnam("sudo").gr_mem)
+    except KeyError:
+        pass
+    for line in (read("/etc/passwd", "") or "").splitlines():
+        f = line.split(":")
+        if len(f) >= 7 and not f[6].endswith(("nologin", "false", "sync")):
+            accounts.append({"user": f[0], "uid": int(f[2]), "shell": f[6], "admin": f[0] in sudo_members or f[2] == "0"})
+    data["login_accounts"] = accounts
+    cron = []
+    for path in ["/etc/crontab"] + sorted(glob.glob("/etc/cron.d/*")) + sorted(glob.glob("/var/spool/cron/crontabs/*")):
+        for l in (read(path, "") or "").splitlines():
+            if l.strip() and not l.strip().startswith("#") and not re.match(r"^\s*\w+=", l):
+                cron.append({"file": path, "entry": l.strip()[:200]})
+    data["cron"] = cron
+    rc, out, _ = run(["find", "/", "-xdev", "-perm", "-4000", "-type", "f"], 300)
+    data["suid"] = sorted(out.split())
+    data["kernel_modules"] = len((read("/proc/modules", "") or "").splitlines())
+    rc, out, _ = run(["ip", "-br", "addr"], 10)
+    data["interfaces"] = [l.split()[:3] for l in out.splitlines() if l.strip()]
+    rc, out, _ = run(["dpkg-query", "-W", "-f=${Status}\n"], 30)
+    data["packages_installed"] = sum(1 for l in out.splitlines() if "install ok installed" in l)
+    data["summary"] = {
+        "network_reachable": sum(1 for x in listen if x["exposure"] == "reachable from the network"),
+        "blocked_by_firewall": sum(1 for x in listen if x["exposure"] == "blocked by firewall"),
+        "local_only": sum(1 for x in listen if x["exposure"] == "local only"),
+        "enabled_services": len(data["enabled_services"]),
+        "login_accounts": len(accounts), "admins": sum(1 for a in accounts if a["admin"]),
+        "suid": len(data["suid"]), "cron_entries": len(cron),
+    }
+    return data
+
 # ── esecuzione ──────────────────────────────────────────────────────────
 def write_atomic(path, data, mode=0o640, group="sudo"):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -831,10 +1238,71 @@ def score_of(results):
     }
 
 
+HISTORY = os.path.join(OUT_DIR, "history.jsonl")
+HISTORY_MAX = 1500          # righe tenute (una riga solo quando qualcosa cambia, o ogni 6 ore)
+
+
+def add_gains(results):
+    """Per ogni controllo non superato: quanti punti di Security Score si guadagnano correggendolo."""
+    vw = sum(r["weight"] for r in results if r["status"] != "unknown")
+    for r in results:
+        if vw and r["status"] in ("fail", "warn"):
+            r["gain"] = round(100 * r["weight"] * (1 if r["status"] == "fail" else 0.5) / vw, 1)
+
+
+def append_history(report, path=None):
+    """Storico del punteggio: una riga quando cambia lo stato di un controllo o il punteggio, o ogni 6 ore."""
+    path = path or HISTORY
+    entry = {
+        "ts": report["generated"], "t": int(time.time()), "score": report["summary"]["score"],
+        "coverage": report["summary"]["coverage"],
+        "categories": {k: v.get("score") for k, v in report["categories"].items()},
+        "status": {r["id"]: r["status"] for r in report["checks"]},
+    }
+    lines = []
+    try:
+        with open(path) as f:
+            lines = [l for l in f.read().splitlines() if l.strip()]
+    except OSError:
+        pass
+    last = None
+    if lines:
+        try:
+            last = json.loads(lines[-1])
+        except ValueError:
+            last = None
+    if last and last.get("status") == entry["status"] and last.get("score") == entry["score"] \
+            and entry["t"] - last.get("t", 0) < 21600:
+        return False
+    lines.append(json.dumps(entry, sort_keys=True))
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(path))
+    with os.fdopen(fd, "w") as f:
+        f.write("\n".join(lines[-HISTORY_MAX:]) + "\n")
+    try:
+        gid = grp.getgrnam("sudo").gr_gid
+    except KeyError:
+        gid = 0
+    if os.geteuid() == 0:
+        os.chown(tmp, 0, gid)
+    os.chmod(tmp, 0o640)
+    os.replace(tmp, path)
+    return True
+
+
 def main():
     if os.geteuid() != 0:
         sys.exit("NEFI: run as root")
     full = "--full" in sys.argv
+    only = sys.argv[sys.argv.index("--only") + 1] if "--only" in sys.argv[:-1] else None
+    if only == "vulns":
+        write_atomic(VULNS, collect_vulns())
+        print("[NEFI] vulnerability list updated")
+        return
+    if only == "surface":
+        write_atomic(SURFACE, collect_surface())
+        print("[NEFI] attack surface inventory updated")
+        return
     try:
         with open(CACHE) as f:
             cache = json.load(f)
@@ -857,7 +1325,10 @@ def main():
             if ttl:
                 cache[cid] = {"at": now, "result": r}
         r.update({"id": cid, "category": cat, "title": title, "weight": weight, "why": why})
+        if cid in FIXES and r["status"] in ("fail", "warn"):
+            r["fix"] = FIXES[cid]
         results.append(r)
+    add_gains(results)
     report = {
         "version": VERSION,
         "generated": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -869,6 +1340,16 @@ def main():
         "checks": results,
     }
     write_atomic(REPORT, report)
+    append_history(report)
+    # superficie: a ogni esecuzione; CVE: lente (rete), aggiornate al massimo ogni 6 ore
+    surface = collect_surface()
+    write_atomic(SURFACE, surface)
+    vc = cache.get("_vulns", {})
+    if full or now - vc.get("at", 0) > 21600 or not os.path.exists(VULNS):
+        exposed = {l.get("package") for l in surface.get("listening", [])
+                   if l.get("exposure") == "reachable from the network" and l.get("package")}
+        write_atomic(VULNS, collect_vulns(exposed))
+        cache["_vulns"] = {"at": now}
     write_atomic(CACHE, cache, mode=0o600, group="root")
     s = report["summary"]
     print(f"[NEFI] Security Score {s['score']}/100  coverage {s['coverage']}%  "

@@ -49,12 +49,16 @@ CORE="nefi-security-center python3-pyqt6 python3-pyqt6.qtsvg python3-psutil pyth
   netcat-openbsd
   libpam-tmpdir libpam-pwquality apt-listchanges needrestart fail2ban python3-systemd debsums apt-show-versions acct sysstat libnotify-bin debsecan"
 DEFAULT="suricata yara clamav clamav-daemon chkrootkit rkhunter lynis nmap tcpdump net-tools"
-LARGE_EXTRA="dc3dd foremost binwalk sleuthkit autopsy testdisk gddrescue ewf-tools wireshark tshark"
+LARGE_EXTRA="dc3dd foremost binwalk sleuthkit autopsy testdisk gddrescue ewf-tools wireshark tshark bulk-extractor guymager plaso"
 AI="nefi-ollama"
+DESKTOP_GNOME="gnome-core gdm3 firefox-esr network-manager-gnome fonts-noto-color-emoji"
+DESKTOP_XFCE="xfce4 xfce4-goodies lightdm lightdm-gtk-greeter firefox-esr network-manager-gnome mate-polkit fonts-noto-color-emoji"
 task nefi-all          -            5 "Select all -- every NEFI collection (desktop + tools + DFIR + AI + SSH)" $DESKTOP_KDE $CORE $DEFAULT $LARGE_EXTRA $AI openssh-server
 
 task nefi-desktop      -            10 "Desktop environment [selecting this item has no effect]" base-files
 task nefi-desktop-kde  nefi-desktop 11 "KDE Plasma (NEFI OS desktop)" $DESKTOP_KDE
+task nefi-desktop-gnome nefi-desktop 12 "GNOME" $DESKTOP_GNOME
+task nefi-desktop-xfce  nefi-desktop 13 "Xfce (lightweight - for older PCs)" $DESKTOP_XFCE
 task nefi-tools        -            20 "Collection of tools [selecting this item has no effect]" base-files
 task nefi-core         nefi-tools   21 "core -- NEFI Security Center and system hardening" $CORE
 task nefi-default      nefi-tools   22 "default -- Blue Team tools: IDS and antivirus and audit scanners" $DEFAULT

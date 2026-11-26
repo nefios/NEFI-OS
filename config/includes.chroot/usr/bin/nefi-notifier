@@ -4,8 +4,11 @@
 Ogni 30 secondi controlla:
   - Falco:    /var/log/falco/events.json      -> avvisi con priorita' >= quella scelta (default: Error)
   - CrowdSec: /var/lib/nefi/crowdsec/state.json -> nuovi indirizzi bloccati automaticamente
+  - Detection: /var/log/nefi/detection/alerts.jsonl -> avvisi del motore NEFI di livello >= quello scelto
+               (default: high). Gli avvisi che arrivano da Falco non vengono ripetuti due volte.
 I file sono leggibili dal gruppo sudo: se l'utente non puo' leggerli, il programma non fa niente.
-Configurazione (facoltativa): ~/.config/nefi/notifier.json, es. {"falco_min_priority": "Warning"}
+Configurazione (facoltativa): ~/.config/nefi/notifier.json, es. {"falco_min_priority": "Warning",
+"detection_min_level": "critical"}
 Al primo avvio NON notifica gli eventi gia' presenti: solo quelli nuovi.
 """
 import json
@@ -16,6 +19,8 @@ import time
 
 FALCO = "/var/log/falco/events.json"
 CROWDSEC = "/var/lib/nefi/crowdsec/state.json"
+DETECTION = "/var/log/nefi/detection/alerts.jsonl"
+LEVELS = ["critical", "high", "medium", "low", "informational"]
 CONF = os.path.expanduser("~/.config/nefi/notifier.json")
 INTERVAL = 30
 MAX_PER_ROUND = 3            # oltre: una sola notifica riassuntiva
@@ -23,7 +28,7 @@ PRIORITIES = ["Emergency", "Alert", "Critical", "Error", "Warning", "Notice", "I
 
 
 def load_conf():
-    conf = {"falco_min_priority": "Error", "crowdsec": True}
+    conf = {"falco_min_priority": "Error", "crowdsec": True, "detection_min_level": "high"}
     try:
         with open(CONF) as f:
             data = json.load(f)
@@ -33,6 +38,8 @@ def load_conf():
         pass
     if conf["falco_min_priority"] not in PRIORITIES:
         conf["falco_min_priority"] = "Error"
+    if conf["detection_min_level"] not in LEVELS:
+        conf["detection_min_level"] = "high"
     return conf
 
 
@@ -44,11 +51,15 @@ def notify(title, body, urgency="critical"):
 
 
 class FalcoWatcher:
-    """Legge solo le righe nuove del file JSON di Falco (gestisce rotazione e troncamento)."""
+    """Legge solo le righe nuove di un file JSON a righe (gestisce rotazione e troncamento)."""
+    PATH = FALCO
+    FIELD = "priority"
+
     def __init__(self):
         self.inode, self.pos = None, None
 
-    def poll(self, min_prio):
+    def poll(self, min_prio, order=PRIORITIES):
+        FALCO = self.PATH
         try:
             st = os.stat(FALCO)
         except OSError:
@@ -58,7 +69,7 @@ class FalcoWatcher:
             return []
         if st.st_ino != self.inode or st.st_size < self.pos:   # file ruotato o troncato
             self.inode, self.pos = st.st_ino, 0
-        keep = PRIORITIES[:PRIORITIES.index(min_prio) + 1]
+        keep = order[:order.index(min_prio) + 1]
         events = []
         try:
             with open(FALCO, encoding="utf-8", errors="replace") as f:
@@ -68,12 +79,17 @@ class FalcoWatcher:
                         ev = json.loads(line)
                     except ValueError:
                         continue
-                    if isinstance(ev, dict) and ev.get("priority") in keep:
+                    if isinstance(ev, dict) and ev.get(self.FIELD) in keep:
                         events.append(ev)
                 self.pos = f.tell()
         except OSError:
             pass
         return events
+
+
+class DetectionWatcher(FalcoWatcher):
+    PATH = DETECTION
+    FIELD = "level"
 
 
 class CrowdSecWatcher:
@@ -99,13 +115,20 @@ class CrowdSecWatcher:
 
 
 def main():
-    falco, crowdsec = FalcoWatcher(), CrowdSecWatcher()
+    falco, crowdsec, detection = FalcoWatcher(), CrowdSecWatcher(), DetectionWatcher()
     while True:
         conf = load_conf()
         msgs = []
         for ev in falco.poll(conf["falco_min_priority"]):
             msgs.append((f"Falco: {ev.get('priority', '')} — {ev.get('rule', 'alert')}",
                          str(ev.get("output", "")).split(": ", 1)[-1]))
+        for a in detection.poll(conf["detection_min_level"], LEVELS):
+            if a.get("source") == "falco":          # gia' notificato qui sopra
+                continue
+            techs = ", ".join(t.get("id", "") for t in (a.get("mitre") or {}).get("techniques", [])[:2])
+            msgs.append((f"NEFI detection: {str(a.get('level', '')).upper()} — {a.get('title', 'alert')}"[:120],
+                         (f"MITRE ATT&CK {techs}. " if techs else "")
+                         + "Open Security Center > Detection > Detections to investigate."))
         if conf["crowdsec"]:
             for d in crowdsec.poll():
                 where = f" ({d.get('country')})" if d.get("country") else ""
@@ -116,7 +139,7 @@ def main():
             notify(title, body)
         if len(msgs) > MAX_PER_ROUND:
             notify(f"NEFI: {len(msgs) - MAX_PER_ROUND} more security events",
-                   "Open NEFI Security Center (Runtime Alerts / Threat Blocking) for details.")
+                   "Open NEFI Security Center (Detections / Runtime Alerts / Threat Blocking) for details.")
         time.sleep(INTERVAL)
 
 

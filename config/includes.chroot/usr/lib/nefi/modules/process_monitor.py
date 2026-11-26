@@ -152,20 +152,14 @@ class ProcessMonitorWidget(QWidget):
             return []
 
     def _is_suspicious(self, proc):
-        suspicious_names = [
-            "nc", "ncat", "netcat", "nmap", "tcpdump",
-            "wireshark", "metasploit", "msfconsole",
-            "cryptominer", "xmrig", "minerd",
-        ]
-        suspicious_parents = [
-            ("python", "bash"), ("python3", "bash"),
-            ("php", "bash"), ("apache2", "bash"),
-        ]
-        name = proc["name"].lower()
-        for s in suspicious_names:
-            if s in name:
-                return True
-        return False
+        # Whole names only: a substring check flagged normal processes
+        # ("nc" is inside systemd-timesyncd, rsync, irqbalance, evince...)
+        suspicious_names = {
+            "nc", "nc.openbsd", "nc.traditional", "ncat", "netcat", "socat",
+            "nmap", "tcpdump", "wireshark", "tshark",
+            "metasploit", "msfconsole", "cryptominer", "xmrig", "minerd",
+        }
+        return proc["name"].lower() in suspicious_names
 
     def refresh(self):
         filter_text = self.search_bar.text().lower()

@@ -22,16 +22,18 @@ class TIWorker(QThread):
     output_line = pyqtSignal(str)
     finished_ok = pyqtSignal(bool)
 
-    def __init__(self, script, args=None):
+    def __init__(self, script, args=None, env=None):
         super().__init__()
         self.script = script
         self.args = args or []
+        self.env = env or {}
 
     def run(self):
         try:
             cmd = ["bash", self.script] + self.args
             process = subprocess.Popen(
                 cmd,
+                env={**os.environ, **self.env},
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -643,15 +645,15 @@ class ThreatIntelWidget(QWidget):
         if not ioc:
             return
         ioc_type = self.search_type.currentText()
-        apikey = self._load_apikey() or "none"
-
         self.search_log.clear()
         self.search_log.append(f"Searching for: {ioc} (type: {ioc_type})\n")
 
         vt_key = self._load_apikey() or "none"
+        # The key goes in the environment: command-line arguments are visible to all local users
         self.worker = TIWorker(
             "/opt/nefi/threat-intel/search-ioc.sh",
-            [ioc, ioc_type, vt_key]
+            [ioc, ioc_type],
+            env={"NEFI_VT_KEY": vt_key}
         )
         self.worker.output_line.connect(self._on_search_line)
         self.worker.finished_ok.connect(

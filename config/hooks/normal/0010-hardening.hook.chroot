@@ -266,6 +266,9 @@ echo "\$nrconf{restart} = 'l';" > /etc/needrestart/conf.d/50-nefi.conf
 # ── valutazione della sicurezza (Security Score e pagine System): all'avvio e ogni 30 minuti ──
 mkdir -p /var/lib/nefi/system
 systemctl enable nefi-assess.timer 2>/dev/null || true
+systemctl enable nefi-netmon.timer 2>/dev/null || true
+systemctl enable nefi-ir-boot.service 2>/dev/null || true
+systemctl enable nefi-detectd.service 2>/dev/null || true
 
 # ── baseline AIDE creata al primo avvio (FINT-4316) ──
 systemctl enable nefi-aide-init.service 2>/dev/null || true
