@@ -403,9 +403,10 @@ class HoneypotWidget(QWidget):
 
     def _load_events(self):
         all_events = []
+        data_dir = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"), "nefi")
         for log_file in [
-            "/var/log/nefi/honeypot-ssh.json",
-            "/var/log/nefi/honeypot-http.json"
+            os.path.join(data_dir, "honeypot-ssh.json"),
+            os.path.join(data_dir, "honeypot-http.json")
         ]:
             if os.path.exists(log_file):
                 try:

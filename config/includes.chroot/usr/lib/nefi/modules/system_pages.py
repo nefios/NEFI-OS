@@ -87,7 +87,8 @@ SERVICES = [
     ("nftables.service", "Firewall"), ("apparmor.service", "AppArmor"), ("auditd.service", "Audit"),
     ("fail2ban.service", "fail2ban"), ("falco-modern-bpf.service", "Falco"), ("crowdsec.service", "CrowdSec"),
     ("crowdsec-firewall-bouncer.service", "CrowdSec bouncer"), ("clamav-freshclam.service", "ClamAV updates"),
-    ("suricata.service", "Suricata"), ("nefi-assess.timer", "NEFI assessment"),
+    ("suricata.service", "Suricata"), ("nefi-detectd.service", "NEFI detection engine"),
+    ("nefi-assess.timer", "NEFI assessment"),
 ]
 
 
@@ -147,7 +148,8 @@ class PackagesPage(CategoryPage):
 class ConfigPage(CategoryPage):
     CATEGORY = "config"
     TITLE = "Configuration Audit"
-    SUBTITLE = "Disk encryption, SSH, sudo, accounts, password policy and services listening on the network."
+    SUBTITLE = ("Disk encryption, sudo, accounts, password policy and services listening on the network. "
+                "SSH server settings are in Prevention > SSH Security.")
 
 
 class BackupPage(ActionPage):

@@ -1,0 +1,36 @@
+id: generic
+title: Generic incident
+description: The six classic steps of incident handling, for anything the other playbooks do not cover.
+categories: [phishing, policy-violation, other]
+steps:
+  - id: identify
+    phase: Identification
+    title: Describe what happened
+    help: Write what you saw, when and how you noticed, as a note in the incident. Set severity and category.
+    page: cases
+  - id: evidence
+    phase: Evidence
+    title: Collect live evidence
+    help: Before changing anything on the machine.
+    action: collect-evidence
+    page: evidence
+  - id: contain
+    phase: Containment
+    title: Stop it from getting worse
+    help: Choose the smallest action that works - block an indicator, suspend a process, quarantine a file, or isolate the whole machine.
+    page: contain
+  - id: eradicate
+    phase: Eradication
+    title: Remove the cause
+    help: Delete or quarantine what was added, close the way in (update, change the password, fix the configuration).
+  - id: recover
+    phase: Recovery
+    title: Run the recovery checklist
+    help: Verifies isolation, logs, monitoring and system files.
+    action: recovery-check
+    page: recovery
+  - id: lessons
+    phase: Lessons learned
+    title: Write what to change
+    help: One note is enough - what worked, what did not, what would have detected it earlier.
+    page: cases

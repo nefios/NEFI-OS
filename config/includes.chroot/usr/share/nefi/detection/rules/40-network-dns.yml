@@ -1,0 +1,157 @@
+# NEFI OS - rete (connessioni TCP viste dal motore) e DNS (Suricata eve.json).
+title: Connection to a known malicious address
+id: nefi-net-threat-intel
+description: A program on this machine is connected to an IP address listed in the threat-intelligence feeds (Detection > Threat Intelligence).
+level: critical
+tags: [attack.command_and_control, attack.t1071]
+logsource: {product: linux, category: network_connection}
+detection:
+  selection: {ThreatIntel: 'true'}
+  condition: selection
+falsepositives: [Shared hosting address reused by a legitimate site]
+nefi_title: 'Connection to a known malicious address: {Image} -> {DestinationIp}:{DestinationPort}'
+---
+title: Program seen on the network for the first time
+id: nefi-net-first-seen
+description: A program that never made outbound Internet connections before opened one. After the first day (learning period) new network programs are worth a look.
+level: low
+tags: [attack.command_and_control]
+logsource: {product: linux, category: network_connection}
+detection:
+  selection: {FirstSeenProgram: 'true', Initiated: 'true', DestinationIsPrivate: 'false'}
+  condition: selection
+falsepositives: [Newly installed software, First use of a program]
+nefi_title: 'New program on the network: {Image} -> {DestinationIp}:{DestinationPort}'
+nefi_dedup: [Image]
+---
+title: Outbound connection opened by a shell
+id: nefi-net-shell
+description: A command shell itself (not a tool started from it) holds an outbound network connection. Shells do not normally talk to the network directly.
+level: high
+tags: [attack.command_and_control, attack.execution, attack.t1059.004, attack.t1071]
+logsource: {product: linux, category: network_connection}
+detection:
+  selection: {Initiated: 'true', 'Image|endswith': [/sh, /bash, /dash, /zsh, /ksh]}
+  condition: selection
+nefi_title: 'Shell with a network connection: {Image} -> {DestinationIp}:{DestinationPort}'
+---
+title: Network connection by a program in a temporary directory
+id: nefi-net-temp-program
+description: A program running from /tmp, /var/tmp or /dev/shm opened an outbound connection.
+level: high
+tags: [attack.command_and_control, attack.t1105, attack.t1571]
+logsource: {product: linux, category: network_connection}
+detection:
+  selection: {Initiated: 'true', 'Image|startswith': [/tmp/, /var/tmp/, /dev/shm/]}
+  filter_appimage: {'Image|contains': '/.mount_'}
+  condition: selection and not filter_appimage
+falsepositives: [AppImage programs, Installers]
+nefi_title: 'Temporary-directory program on the network: {Image} -> {DestinationIp}:{DestinationPort}'
+---
+title: Outbound connection (base rule for correlation)
+id: nefi-net-outbound
+description: Every outbound connection; used only by the scan correlations below.
+level: informational
+nefi_silent: true
+logsource: {product: linux, category: network_connection}
+detection:
+  selection: {Initiated: 'true'}
+  condition: selection
+---
+title: One program contacted many ports of the same host
+id: nefi-corr-port-sweep
+description: A program connected to 15 or more different ports of one address within a minute - the pattern of a port scan.
+level: medium
+tags: [attack.discovery, attack.t1046]
+correlation:
+  type: value_count
+  rules: [nefi-net-outbound]
+  group-by: [Image, DestinationIp]
+  timespan: 1m
+  condition: {field: DestinationPort, gte: 15}
+falsepositives: [nmap or a vulnerability scanner run by the administrator]
+---
+title: One program contacted many hosts on the same port
+id: nefi-corr-host-sweep
+description: A program connected to 60 or more different addresses on one port within two minutes - the pattern of a network sweep or of worm-like spreading.
+level: medium
+tags: [attack.discovery, attack.lateral_movement, attack.t1046]
+correlation:
+  type: value_count
+  rules: [nefi-net-outbound]
+  group-by: [Image, DestinationPort]
+  timespan: 2m
+  condition: {field: DestinationIp, gte: 60}
+falsepositives: [Web browsers and download managers, Peer-to-peer software]
+---
+title: DNS query for a known malicious domain
+id: nefi-dns-threat-intel
+description: This network asked for the address of a domain listed in the threat-intelligence feeds.
+level: critical
+tags: [attack.command_and_control, attack.t1071.004]
+logsource: {product: linux, category: dns_query}
+detection:
+  selection: {ThreatIntel: 'true', DnsType: [query, request]}
+  condition: selection
+nefi_title: 'DNS query for a known malicious domain: {QueryName}'
+---
+title: Unusually long DNS name
+id: nefi-dns-long-name
+description: A DNS query has a label of 50 or more characters or a total length of 120 or more. Very long names are used to carry data inside DNS (tunnelling).
+level: medium
+tags: [attack.command_and_control, attack.exfiltration, attack.t1572, attack.t1071.004]
+logsource: {product: linux, category: dns_query}
+detection:
+  long_label: {'LongestLabel|gte': 50}
+  long_name: {'QueryLength|gte': 120}
+  queries: {DnsType: [query, request]}
+  condition: queries and (long_label or long_name)
+falsepositives: [Content delivery networks, DKIM and anti-spam lookups]
+nefi_title: 'Unusually long DNS name: {QueryName}'
+nefi_dedup: [ParentDomain]
+---
+title: Random-looking DNS label (base rule for correlation)
+id: nefi-dns-random-label
+description: A DNS label of 20 or more characters with high entropy.
+level: informational
+nefi_silent: true
+logsource: {product: linux, category: dns_query}
+detection:
+  selection: {'LongestLabel|gte': 20, 'LabelEntropy|gte': 3.7, DnsType: [query, request]}
+  condition: selection
+---
+title: Many random-looking subdomains of one domain
+id: nefi-corr-dns-tunnel
+description: 25 or more different random-looking names under the same domain were queried within five minutes - typical of data carried over DNS.
+level: high
+tags: [attack.command_and_control, attack.exfiltration, attack.t1572, attack.t1048]
+correlation:
+  type: value_count
+  rules: [nefi-dns-random-label]
+  group-by: [ParentDomain]
+  timespan: 5m
+  condition: {field: QueryName, gte: 25}
+falsepositives: [Some CDN and telemetry services]
+---
+title: DNS name that does not exist (base rule for correlation)
+id: nefi-dns-nxdomain
+description: A DNS answer said the name does not exist.
+level: informational
+nefi_silent: true
+logsource: {product: linux, category: dns_query}
+detection:
+  selection: {Rcode: NXDOMAIN}
+  condition: selection
+---
+title: Burst of DNS queries for names that do not exist
+id: nefi-corr-dns-nxdomain
+description: 40 or more different non-existent names were queried by one address within two minutes. Malware that generates domain names (DGA) produces this pattern while looking for its server.
+level: medium
+tags: [attack.command_and_control, attack.t1568.002]
+correlation:
+  type: value_count
+  rules: [nefi-dns-nxdomain]
+  group-by: [DestinationIp]
+  timespan: 2m
+  condition: {field: QueryName, gte: 40}
+falsepositives: [Misconfigured software, Browser prefetching on captive networks]

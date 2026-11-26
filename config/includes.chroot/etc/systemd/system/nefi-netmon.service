@@ -1,0 +1,13 @@
+[Unit]
+Description=NEFI OS - Network monitoring: summarize Suricata events (flows, DNS, TLS, IDS alerts)
+After=suricata.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/nefi/netmon/netmon.py summarize
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes
+ProtectSystem=full

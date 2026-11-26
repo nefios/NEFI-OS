@@ -35,25 +35,44 @@ SECTIONS = [
         ("usb",        "USB Guardian",       "usb",      "Control USB devices",           "usb_guardian",       "USBGuardianWidget"),
         ("privacy",    "Privacy",            "eye_off",  "Camera, mic, Bluetooth, DNS",   "privacy_control",    "PrivacyControlWidget"),
         ("sandbox",    "Sandbox",            "cube",     "Run apps in isolation",         "sandbox",            "SandboxWidget"),
+        ("vulnmgmt",   "Vulnerability Management", "bug",   "Known CVEs in installed packages", "prevention_pages", "VulnerabilityPage"),
+        ("surface",    "Attack Surface",     "radar",    "Ports, services, accounts, SUID", "prevention_pages",  "AttackSurfacePage"),
+        ("kernelhard", "Kernel Hardening",   "sliders",  "Assess and fix kernel settings", "prevention_pages",   "KernelHardeningPage"),
+        ("sshsec",     "SSH Security",       "key",      "Assess and fix the SSH server",  "prevention_pages",   "SSHPage"),
     ]),
     ("detection", "Detection", "search", [
-        ("edr",        "EDR",                   "radar", "Endpoint detection and response", "edr",          "EDRWidget"),
+        ("edr",        "Detections",            "radar", "Alerts, MITRE ATT&CK, investigation", "detection_pages", "DetectionsPage"),
+        ("baseline",   "Integrity & Persistence", "fingerprint", "Approve changes to the baseline", "detection_pages", "BaselinePage"),
+        ("detrules",   "Detection Rules",       "list",  "Sigma rules, coverage, exceptions", "detection_pages", "RulesPage"),
+        ("hunting",    "Threat Hunting",        "target", "Search executed programs, live queries", "detection_pages", "HuntingPage"),
+        ("detsettings","Detection Settings",    "gear",  "Canaries, log server, Sigma, osquery, Wazuh", "detection_pages", "SettingsPage"),
         ("threatintel","Threat Intelligence",   "globe", "IOC, feeds and VirusTotal",       "threat_intel", "ThreatIntelWidget"),
         ("vuln",       "Vulnerability Scanner", "bug",   "Lynis security audit",            "vuln_scanner", "VulnScannerWidget"),
         ("honeypot",   "Honeypot",              "honey", "Decoy SSH and HTTP services",     "honeypot",     "HoneypotWidget"),
         ("runtime",    "Runtime Alerts",        "alert", "Falco real-time threat detection", "runtime_alerts", "RuntimeAlertsWidget"),
     ]),
     ("dfir", "DFIR", "file", [
-        ("evidence",   "Evidence Collection", "folder",      "One-click forensic acquisition", "forensics",         "ForensicsWidget"),
+        ("evidence",   "Evidence & Custody",  "folder",      "Signed evidence, chain of custody", "forensics_pages",  "EvidencePage"),
+        ("memory",     "Memory Forensics",    "cpu",         "RAM acquisition and Volatility 3", "forensics_pages",  "MemoryPage"),
+        ("timeline",   "Timeline",            "activity",    "Everything that happened, in order", "forensics_pages", "TimelinePage"),
+        ("diskforensics", "Disk Forensics",   "snapshot",    "Write-blocked imaging and analysis", "forensics_pages", "DiskPage"),
         ("integrity",  "Integrity Control",   "fingerprint", "AIDE file integrity",            "integrity_control", "IntegrityControlWidget"),
         ("logs",       "Log Viewer",          "terminal",    "System and security logs",       "log_viewer",        "LogViewerWidget"),
     ]),
     ("monitoring", "Monitoring", "chart", [
         ("network",    "Network Monitor",   "network",  "Interfaces and connections",   "network_monitor", "NetworkMonitorWidget"),
+        ("netids",     "Network IDS",       "radar",    "Suricata alerts by signature and source", "monitoring_pages", "NetworkIDSPage"),
+        ("dnsmon",     "DNS Monitoring",    "globe",    "Names requested, unusual names", "monitoring_pages", "DnsPage"),
+        ("flows",      "Traffic & Flows",   "chart",    "Remote hosts, services, 30-day history", "monitoring_pages", "FlowsPage"),
+        ("pcap",       "Packet Capture",    "activity", "Bounded captures, Wireshark, evidence", "monitoring_pages", "PcapPage"),
         ("processes",  "Processes",         "activity", "Process tree and control",     "process_monitor", "ProcessMonitorWidget"),
     ]),
     ("response", "Response", "gear", [
-        ("ir",         "Incident Response", "siren", "Isolate host and collect evidence", "incident_response", "IncidentResponseWidget"),
+        ("cases",      "Incidents",         "siren", "Cases, classification, timeline, reports", "response_pages", "IncidentsPage"),
+        ("playbooks",  "Playbooks",         "list",  "Guided and automatic procedures",   "response_pages", "PlaybookPage"),
+        ("ir",         "Host Isolation",    "lock",  "Cut the network, with a safety net", "response_pages", "IsolationPage"),
+        ("contain",    "Containment",       "block", "Processes, file quarantine, indicators", "response_pages", "ContainmentPage"),
+        ("recovery",   "Recovery",          "refresh", "Checklist before closing an incident", "response_pages", "RecoveryPage"),
         ("blocking",   "Threat Blocking",   "wall",  "CrowdSec: blocked attackers, allow or block", "threat_blocking", "ThreatBlockingWidget"),
         ("guardian",   "NEFI Guardian",     "bot",   "AI security assistant",             "guardian",          "GuardianWidget"),
     ]),
@@ -71,7 +90,7 @@ def nefi_version():
     return "?"
 
 
-EAGER = {"edr"}   # moduli avviati subito (monitoraggio continuo)
+EAGER = set()     # moduli avviati subito (il rilevamento ora e' nel servizio root nefi-detectd, non nella finestra)
 NATIVE = set()  # moduli già ridisegnati: gestiscono da soli lo spazio
 
 

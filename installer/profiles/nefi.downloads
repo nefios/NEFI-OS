@@ -123,3 +123,11 @@ acct
 sysstat
 libnotify-bin
 debsecan
+gnome-core
+gdm3
+network-manager-gnome
+xfce4
+xfce4-goodies
+lightdm
+lightdm-gtk-greeter
+mate-polkit

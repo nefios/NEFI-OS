@@ -23,3 +23,5 @@ exim4-config exim4/dc_local_interfaces string 127.0.0.1 ; ::1
 d-i partman-auto/method string crypto
 d-i partman-auto/choose_recipe select atomic
 d-i partman-auto-lvm/guided_size string max
+# Radice su Btrfs (dentro LVM cifrato): snapshot e rollback con Snapper
+d-i partman/default_filesystem string btrfs
