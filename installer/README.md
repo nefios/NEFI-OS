@@ -16,12 +16,14 @@ Builds the NEFI OS installer ISO: the official Debian 13 installer remastered wi
 ## Usage
 
 ```bash
-./build.sh                    # version 0.3 by default
-NEFI_VERSION=0.3 ./build.sh   # explicit version
+./build.sh                    # version 0.4 by default
+NEFI_VERSION=0.4 ./build.sh   # explicit version
 ```
 
 Before the first build, put the Debian DVD image `debian-13-amd64-DVD-1.iso` in `installer/images/`. The ISO is written to `installer/images/nefi-os-<version>-amd64.iso`.
 
 `images/` and `tmp/` are created by the build and are not stored in Git.
+
+The build downloads the Debian archive *Contents* index from the same mirror (cached in `tmp/contents/`) to find the files that NEFI packages share with Debian packages. If the index cannot be checked, the build stops. `NEFI_SKIP_DEBIAN_CHECK=1` skips the check: use it only for offline test builds, never for a build you publish.
 
 Full guide: [Build from source](https://nefi-os.gitbook.io/docs/project/development/build-from-source).

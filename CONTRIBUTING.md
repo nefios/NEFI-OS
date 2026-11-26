@@ -32,6 +32,12 @@ NEFI OS has been validated only in virtual machines. Reports from other hypervis
    python3 -m py_compile config/includes.chroot/usr/lib/nefi/modules/*.py
    ```
 
+   and run the unit tests (see [tests/README.md](tests/README.md)):
+
+   ```bash
+   for t in tests/test_*.py; do python3 "$t" || break; done
+   ```
+
 5. Do not commit the version stamps that the build writes into `packages/*/DEBIAN/control`.
 6. Describe what you changed, why, and how you tested it. The pull request template will guide you.
 
