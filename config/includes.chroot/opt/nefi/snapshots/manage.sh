@@ -3,6 +3,11 @@
 ACTION="$1"
 DESCRIPTION="${2:-NEFI Snapshot}"
 
+# Runs as root: snapshot numbers must be plain numbers (no ranges, no options)
+need_number() {
+    [[ "$1" =~ ^[0-9]+$ ]] || { echo "[NEFI-SNAP] Invalid snapshot number: $1" >&2; exit 2; }
+}
+
 case "$ACTION" in
     check_btrfs)
         # Verifica se il filesystem è Btrfs
@@ -38,14 +43,14 @@ case "$ACTION" in
 
     delete)
         # Elimina snapshot per numero
-        NUM="$2"
+        NUM="$2"; need_number "$NUM"
         snapper -c root delete "$NUM" 2>&1
         echo "[NEFI-SNAP] Snapshot $NUM deleted"
         ;;
 
     rollback)
         # Rollback a snapshot
-        NUM="$2"
+        NUM="$2"; need_number "$NUM"
         snapper -c root undochange "${NUM}..0" 2>&1
         echo "[NEFI-SNAP] Rolled back to snapshot $NUM"
         ;;
@@ -70,7 +75,7 @@ case "$ACTION" in
 
     status)
         # Stato generale
-        SNAP_COUNT=$(snapper -c root list 2>/dev/null | grep -c "^[0-9]" || echo 0)
+        SNAP_COUNT=$(snapper -c root list 2>/dev/null | grep -c "^[0-9]")   # grep -c already prints 0
         echo "SNAPSHOT_COUNT=$SNAP_COUNT"
         LATEST=$(snapper -c root list 2>/dev/null | grep "^[0-9]" | tail -1)
         echo "LATEST=$LATEST"

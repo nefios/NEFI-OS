@@ -1,0 +1,36 @@
+id: data-exposure
+title: Data leak or exposure
+description: Personal or confidential data may have left this machine or been read by someone who should not (large upload, files copied to USB, stolen credentials file).
+categories: [data-exposure, lost-device]
+steps:
+  - id: scope
+    phase: Identification
+    title: Establish what data and when
+    help: Write in the incident which files or accounts are involved and the time window. Monitoring > Traffic & Flows shows the largest transfers per remote host; DFIR > Timeline shows the files read or changed in that window.
+    page: flows
+  - id: evidence
+    phase: Evidence
+    title: Collect live evidence
+    help: Signed archive linked to this incident. It will be needed if the leak must be reported.
+    action: collect-evidence
+    page: evidence
+  - id: stop
+    phase: Containment
+    title: Stop the transfer
+    help: Block the destination in Response > Containment > Indicators, or isolate the machine if you do not know it. For USB devices use Prevention > USB Guardian.
+    page: contain
+  - id: credentials
+    phase: Eradication
+    title: Revoke what was exposed
+    help: Passwords, API keys, SSH keys and tokens contained in the exposed files must be considered known - change them at the service that issued them.
+  - id: notify
+    phase: Recovery
+    title: Decide who must be told
+    help: If personal data of other people is involved, EU law (GDPR art. 33) requires telling the data protection authority within 72 hours of becoming aware, unless the leak is unlikely to be a risk for those people. Ask your data protection officer or a lawyer. NEFI cannot decide this for you - export the incident report to support the notification.
+    page: cases
+  - id: recover
+    phase: Recovery
+    title: Run the recovery checklist
+    help: Verifies isolation, logs, monitoring and system files.
+    action: recovery-check
+    page: recovery

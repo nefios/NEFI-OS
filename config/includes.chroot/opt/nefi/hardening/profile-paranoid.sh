@@ -5,10 +5,19 @@ echo "[NEFI] Applying PARANOID profile..."
 
 bash /opt/nefi/hardening/profile-professional.sh
 
+# ── USB: solo tastiere, mouse e hub ──
+# La vecchia regola guardava la classe del DISPOSITIVO (quasi sempre 00, anche per tastiere e hub) e quindi
+# rischiava di spegnere tutto, tastiera compresa. La classe vera sta sull'INTERFACCIA:
+#   03 = tastiere e mouse (HID)   09 = hub (anche quelli interni del computer)
+# Ogni altra interfaccia USB collegata DA ORA IN POI non viene autorizzata: memorie, schede di rete,
+# webcam, audio, telefoni. I dispositivi gia' collegati restano attivi fino al riavvio.
+# Per tornare indietro: profilo HOME (rimuove questo file).
 cat > /etc/udev/rules.d/99-nefi-usb-paranoid.rules << 'UDEV'
-SUBSYSTEM=="usb", ATTR{bDeviceClass}!="03", RUN+="/bin/sh -c 'echo 0 > /sys$DEVPATH/authorized'"
+# NEFI OS - Paranoid profile: only USB keyboards, mice and hubs are authorized
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_interface", ATTR{bInterfaceClass}!="03", ATTR{bInterfaceClass}!="09", ATTR{authorized}="0"
 UDEV
 udevadm control --reload-rules 2>/dev/null || true
+echo "[NEFI] USB: only keyboards, mice and hubs will be accepted (webcams, audio, network and storage are refused)."
 
 sed -i 's/^PermitRootLogin.*/PermitRootLogin no/' /etc/ssh/sshd_config 2>/dev/null || true
 # root non puo' entrare dalla console di login (aggiunto una sola volta)

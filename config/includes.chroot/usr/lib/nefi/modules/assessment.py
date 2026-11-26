@@ -13,7 +13,7 @@ import time
 from datetime import datetime
 
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QTextEdit
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QScrollArea, QTextEdit, QMessageBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
@@ -21,6 +21,7 @@ from nefi_theme import C, Card, SectionLabel, GhostButton, PrimaryButton, Pill, 
 
 REPORT = "/var/lib/nefi/system/report.json"
 COLLECTOR = "/opt/nefi/system/collect.py"
+FIXER = "/opt/nefi/prevention/fix.py"
 
 STATUS = {   # stato -> (testo, tono, icona)
     "pass":    ("Passed", "ok", "check_sq"),
@@ -72,9 +73,30 @@ class RunWorker(QThread):
             self.finished_ok.emit(False)
 
 
+class FixWorker(QThread):
+    """Applica una o piu' correzioni dalla whitelist di fix.py (root via pkexec)."""
+    done = pyqtSignal(bool, str)
+
+    def __init__(self, fix_ids):
+        super().__init__()
+        self.fix_ids = list(fix_ids)
+
+    def run(self):
+        try:
+            p = subprocess.run(["pkexec", "/usr/bin/python3", FIXER] + self.fix_ids,
+                               capture_output=True, text=True, timeout=1800)
+            out = "\n".join(l.replace("[NEFI] ", "") for l in (p.stdout + p.stderr).splitlines()
+                            if l.startswith("[NEFI]") and "Re-running" not in l and "Done." not in l)
+            if p.returncode in (126, 127) and not out:
+                out = "Cancelled (administrator password not given)."
+            self.done.emit(p.returncode == 0, out or "No output.")
+        except (OSError, subprocess.SubprocessError) as e:
+            self.done.emit(False, f"Error: {e}")
+
+
 class CheckRow(QFrame):
     """Una riga: stato, titolo, prova in breve, peso. Clic = dettagli (perche', prova completa, metodo)."""
-    def __init__(self, chk):
+    def __init__(self, chk, on_fix=None):
         super().__init__()
         self.chk = chk
         self.open = False
@@ -107,6 +129,11 @@ class CheckRow(QFrame):
         text.addWidget(t)
         text.addWidget(e)
         top.addLayout(text, 1)
+        if chk.get("gain"):
+            g = QLabel(f"+{chk['gain']:g} pts")
+            g.setToolTip("Points the Security Score gains when this check passes")
+            g.setStyleSheet(f"color: {C['accent']}; font-size: 12px; font-weight: bold; background: transparent;")
+            top.addWidget(g)
         w = QLabel(f"weight {chk.get('weight', 0)}")
         w.setToolTip("Weight of this check in the Security Score (1 = minor, 10 = core protection)")
         w.setStyleSheet(f"color: {C['text3']}; font-size: 12px; background: transparent;")
@@ -132,11 +159,29 @@ class CheckRow(QFrame):
             f"&nbsp;&nbsp;•&nbsp;&nbsp;<b>ID:</b> {chk.get('id', '')}{cache_txt}")
         self.details.hide()
         lay.addWidget(self.details)
+        self.fix_bar = None
+        if chk.get("fix") and on_fix:          # correzione automatica disponibile
+            self.fix_bar = QWidget()
+            self.fix_bar.setStyleSheet("background: transparent;")
+            fb = QHBoxLayout(self.fix_bar)
+            fb.setContentsMargins(0, 0, 0, 0)
+            hint = QLabel("NEFI can fix this for you (administrator password required). "
+                          "The change is written to a NEFI configuration file and can be reverted.")
+            hint.setWordWrap(True)
+            hint.setStyleSheet(f"color: {C['text3']}; font-size: 12px; background: transparent;")
+            fb.addWidget(hint, 1)
+            btn = GhostButton("Apply fix", "check_sq", 32, tone="ok")
+            btn.clicked.connect(lambda: on_fix([chk["fix"]], chk.get("title", "")))
+            fb.addWidget(btn)
+            self.fix_bar.hide()
+            lay.addWidget(self.fix_bar)
 
     def mouseReleaseEvent(self, e):
         if e.button() == Qt.MouseButton.LeftButton:
             self.open = not self.open
             self.details.setVisible(self.open)
+            if self.fix_bar:
+                self.fix_bar.setVisible(self.open)
 
 
 class CheckList(QWidget):
@@ -149,6 +194,7 @@ class CheckList(QWidget):
         self.lay.setSpacing(8)
         self._sig = None
         self.filter = "all"
+        self.on_fix = None       # callback(fix_ids, title): impostato dalla pagina
 
     def set_checks(self, checks, flt=None):
         if flt:
@@ -156,7 +202,8 @@ class CheckList(QWidget):
         sel = [c for c in checks if self.filter == "all"
                or (self.filter == "issues" and c.get("status") in ("fail", "warn"))
                or (self.filter == "unknown" and c.get("status") == "unknown")]
-        sel.sort(key=lambda c: (ORDER.get(c.get("status"), 9), -c.get("weight", 0)))
+        # prima cio' che fa guadagnare piu' punti: e' l'ordine in cui conviene lavorare
+        sel.sort(key=lambda c: (ORDER.get(c.get("status"), 9), -c.get("gain", 0), -c.get("weight", 0)))
         sig = json.dumps(sel, sort_keys=True)
         if sig == self._sig:
             return                      # niente di nuovo: non ridisegno (le righe aperte restano aperte)
@@ -170,7 +217,7 @@ class CheckList(QWidget):
             l.setStyleSheet(f"color: {C['text3']}; background: transparent;")
             self.lay.addWidget(l)
         for c in sel:
-            self.lay.addWidget(CheckRow(c))
+            self.lay.addWidget(CheckRow(c, self.on_fix))
         self.lay.addStretch()
 
 
@@ -191,6 +238,37 @@ class AssessmentBase(QWidget):
         super().__init__()
         self.worker = None
         self.report = None
+        self.fixer = None
+
+    def apply_fix(self, fix_ids, title=""):
+        """Chiede conferma, applica le correzioni e ricarica i risultati."""
+        if self.fixer and self.fixer.isRunning():
+            return
+        what = title or f"{len(fix_ids)} recommended settings"
+        if QMessageBox.question(self, "Apply fix",
+                                f"Apply the NEFI fix for:\n\n{what}\n\nThis changes the system configuration "
+                                f"(administrator password required).") != QMessageBox.StandardButton.Yes:
+            return
+        self.fixer = FixWorker(fix_ids)
+        self.fixer.done.connect(self._fixed)
+        self.fixer.start()
+
+    def _fixed(self, ok, out):
+        self.refresh(force=True)
+        box = QMessageBox.information if ok else QMessageBox.warning
+        box(self, "Done" if ok else "Not (fully) done", out)
+
+    def undo_fix(self, fix_ids):
+        """Annulla correzioni applicate da NEFI (fix.py undo): torna il valore di prima."""
+        if not fix_ids or (self.fixer and self.fixer.isRunning()):
+            return
+        if QMessageBox.question(self, "Undo fix", "Undo these NEFI fixes and return to the previous values?\n\n"
+                                + "\n".join(fix_ids) + "\n\n(administrator password required)") \
+                != QMessageBox.StandardButton.Yes:
+            return
+        self.fixer = FixWorker(["undo"] + list(fix_ids))
+        self.fixer.done.connect(self._fixed)
+        self.fixer.start()
 
     def _run_bar(self):
         bar = QHBoxLayout()
@@ -261,6 +339,7 @@ class CategoryPage(AssessmentBase):
         card = Card(padding=18)
         card.body.addWidget(SectionLabel("Checks (click a check for evidence and method)"))
         self.list = CheckList()
+        self.list.on_fix = self.apply_fix
         card.body.addWidget(self.list)
         lay.addWidget(card, 1)
         self.build_extra()

@@ -1,3 +1,4 @@
+import glob
 import subprocess
 import os
 from PyQt6.QtWidgets import (
@@ -37,6 +38,22 @@ class HardeningCheckWorker(QThread):
 
         self.result_ready.emit(results)
 
+    @staticmethod
+    def _out(args, timeout=3):
+        """Output di un comando eseguito SENZA shell ('' se manca o fallisce)."""
+        try:
+            return subprocess.run(args, capture_output=True, text=True, timeout=timeout).stdout
+        except (OSError, subprocess.SubprocessError):
+            return ""
+
+    @staticmethod
+    def _read(path):
+        try:
+            with open(path, errors="replace") as f:
+                return f.read()
+        except OSError:
+            return ""
+
     def _svc_active(self, svc):
         r = subprocess.run(["systemctl", "is-active", svc],
                            capture_output=True, text=True, timeout=3)
@@ -45,9 +62,7 @@ class HardeningCheckWorker(QThread):
     def _check_nftables(self):
         active = self._svc_active("nftables")
         if active:
-            r = subprocess.run("nft list ruleset 2>/dev/null | wc -l",
-                               shell=True, capture_output=True, text=True, timeout=3)
-            rules = int(r.stdout.strip() or "0")
+            rules = len(self._out(["nft", "list", "ruleset"]).splitlines())
             return True, f"Active — {rules} rule lines loaded"
         return False, "nftables service not running"
 
@@ -70,51 +85,74 @@ class HardeningCheckWorker(QThread):
         active = self._svc_active("auditd")
         if not active:
             return False, "auditd not running"
-        r = subprocess.run("auditctl -l 2>/dev/null | wc -l",
-                           shell=True, capture_output=True, text=True, timeout=3)
-        rules = int(r.stdout.strip() or "0")
+        rules = len([l for l in self._out(["auditctl", "-l"]).splitlines() if l.startswith("-")])
         return True, f"Active — {rules} audit rules loaded"
 
     def _check_secureboot(self):
-        r = subprocess.run("mokutil --sb-state 2>/dev/null",
-                           shell=True, capture_output=True, text=True, timeout=3)
-        if "enabled" in r.stdout.lower():
+        if "enabled" in self._out(["mokutil", "--sb-state"]).lower():
             return True, "Secure Boot enabled"
         return False, "Secure Boot not enabled — configure in BIOS/UEFI"
 
     def _check_encryption(self):
-        r = subprocess.run("lsblk -o TYPE 2>/dev/null | grep -c crypt",
-                           shell=True, capture_output=True, text=True, timeout=3)
-        count = int(r.stdout.strip() or "0")
+        count = sum(1 for l in self._out(["lsblk", "-n", "-o", "TYPE"]).split() if l == "crypt")
         if count > 0:
             return True, f"{count} encrypted volume(s) detected"
         return False, "No disk encryption detected — configure LUKS at installation"
 
     def _check_rootlogin(self):
-        r = subprocess.run("grep -i '^PermitRootLogin' /etc/ssh/sshd_config 2>/dev/null",
-                           shell=True, capture_output=True, text=True, timeout=3)
-        if "no" in r.stdout.lower():
+        # configurazione EFFETTIVA di sshd (include i file in sshd_config.d); serve root per "sshd -T",
+        # quindi qui leggo i file nell'ordine in cui li legge sshd: vince il primo valore trovato
+        if not os.path.exists("/usr/sbin/sshd"):
+            return True, "SSH server not installed"
+        value = None
+        for path in sorted(glob.glob("/etc/ssh/sshd_config.d/*.conf")) + ["/etc/ssh/sshd_config"]:
+            for line in self._read(path).splitlines():
+                parts = line.split()
+                if len(parts) >= 2 and parts[0].lower() == "permitrootlogin":
+                    value = parts[1].lower()
+                    break
+            if value:
+                break
+        if value == "no":
             return True, "Root SSH login disabled"
-        if not r.stdout.strip():
-            return True, "sshd_config not present (SSH not installed)"
-        return False, "Root SSH login may be enabled — set PermitRootLogin no"
+        if value is None:
+            return False, "PermitRootLogin not set (default: root can log in with a key) — see Prevention > SSH Security"
+        return False, f"Root SSH login allowed (PermitRootLogin {value}) — see Prevention > SSH Security"
 
     def _check_dns(self):
-        r = subprocess.run("cat /etc/systemd/resolved.conf.d/nefi-dns.conf 2>/dev/null",
-                           shell=True, capture_output=True, text=True, timeout=3)
-        if "DNSOverTLS=yes" in r.stdout:
+        if "DNSOverTLS=yes" in self._read("/etc/systemd/resolved.conf.d/nefi-dns.conf"):
             return True, "DNS over TLS enabled (Cloudflare + Quad9)"
         return False, "Secure DNS not configured — apply Professional profile"
 
     def _check_usb(self):
-        r = subprocess.run("ls /etc/udev/rules.d/ 2>/dev/null | grep nefi",
-                           shell=True, capture_output=True, text=True, timeout=3)
-        if r.stdout.strip():
-            rules = r.stdout.strip().split("\n")
-            if "99-nefi-usb-paranoid.rules" in r.stdout:
-                return True, "Paranoid USB policy active (all blocked except HID)"
-            return True, f"USB restrictions active: {', '.join(rules)}"
-        return False, "No USB restrictions — apply Professional or Paranoid profile"
+        """Stato EFFETTIVO del blocco delle memorie USB, non solo la presenza di un file:
+        il driver usb-storage non si puo' caricare, non e' caricato, e nessun disco USB e' collegato."""
+        blocked = False
+        for conf in sorted(glob.glob("/etc/modprobe.d/*.conf") + glob.glob("/run/modprobe.d/*.conf")
+                           + glob.glob("/usr/lib/modprobe.d/*.conf")):
+            try:
+                with open(conf) as f:
+                    for line in f:
+                        w = line.split()
+                        if (len(w) >= 3 and w[0] == "install" and w[1].replace("-", "_") == "usb_storage"
+                                and w[2] in ("/bin/false", "/bin/true", "/usr/bin/false", "/usr/bin/true")):
+                            blocked = True
+            except OSError:
+                continue
+        loaded = os.path.isdir("/sys/module/usb_storage") or os.path.isdir("/sys/module/uas")
+        in_use = [d for d in glob.glob("/sys/bus/usb/drivers/usb-storage/*") + glob.glob("/sys/bus/usb/drivers/uas/*")
+                  if ":" in os.path.basename(d)]
+        udev_rule = os.path.exists("/etc/udev/rules.d/99-nefi-usb-restrict.rules")
+        if blocked and not in_use and not loaded:
+            extra = " + udev deauthorization" if udev_rule else ""
+            return True, f"USB mass storage blocked (driver cannot load{extra})"
+        if blocked and in_use:
+            return False, ("Block configured, but a USB drive is connected and usable right now: "
+                           "remove it (or reboot)")
+        if blocked and loaded:
+            return True, ("USB mass storage blocked for new drives (driver still loaded from an earlier "
+                          "drive: it unloads at reboot)")
+        return False, "USB mass storage allowed — apply the Professional or Paranoid profile to block it"
 
     def _check_autoupdates(self):
         active = self._svc_active("unattended-upgrades")
@@ -142,9 +180,9 @@ class HardeningCheckWorker(QThread):
 
     def _check_aide(self):
         if os.path.exists("/var/lib/aide/aide.db"):
-            r = subprocess.run("stat -c '%y' /var/lib/aide/aide.db 2>/dev/null",
-                               shell=True, capture_output=True, text=True, timeout=2)
-            return True, f"Baseline present — last updated: {r.stdout.strip()[:10]}"
+            import time
+            when = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime("/var/lib/aide/aide.db")))
+            return True, f"Baseline present — last updated: {when}"
         return False, "No AIDE baseline — create it in the Integrity tab"
 
 

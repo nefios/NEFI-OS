@@ -1,0 +1,19 @@
+# NEFI OS - prove forensi: accessi all'archivio fuori dagli strumenti NEFI (usata dal motore di rilevamento, se presente).
+title: Evidence store or signing key accessed outside the NEFI tools
+id: nefi-dfir-evidence-access
+description: A program that is not part of the NEFI forensic workflow opened the evidence store or the evidence signing key. Evidence must only be handled through DFIR > Evidence & Chain of Custody, which records every operation.
+level: high
+tags: [attack.defense_evasion, attack.collection, attack.t1070, attack.t1565.001]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': nefi_evidence, Success: 'yes'}
+  filter_tools:
+    'Image|endswith': [/bash, /dash, /tar, /gzip, /sha256sum, /find, /gpg, /gpg-agent, /gpgconf, /keyboxd, /chattr,
+                       /ewfacquire, /ewfverify, /fls, /mmls, /fsstat, /foremost, /bulk_extractor, /avml, /vol,
+                       /install, /chown, /chmod, /cp, /mkdir, /auditctl, /augenrules, /lsattr, /log2timeline.py, /psort.py]
+  filter_python: {'Image|startswith': /usr/bin/python3}
+  filter_vol: {'Image|startswith': /opt/nefi/forensics/vol3/}
+  condition: selection and not filter_tools and not filter_python and not filter_vol
+falsepositives: [Administrator inspecting the store from a terminal, Backup software]
+nefi_title: 'Evidence store accessed by {Image} ({User}): {TargetFilename}'
+nefi_dedup: [Image, User]

@@ -33,6 +33,11 @@ chmod +x /usr/bin/nefi-security-center
 mkdir -p /var/log/nefi
 chmod 755 /var/log/nefi
 
+# The Log Viewer runs as the user: administrators (sudo group) may read the system journal
+for u in $(getent group sudo | cut -d: -f4 | tr ',' ' '); do
+  adduser --quiet "$u" systemd-journal 2>/dev/null || true
+done
+
 echo "[NEFI] Final configuration completed."
 
 # Enable AIDE permissions fix service

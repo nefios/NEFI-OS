@@ -1,1 +1,2 @@
 /etc/default/grub.d/nefi.cfg
+/etc/default/grub.d/nefi-hardening.cfg

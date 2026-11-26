@@ -1,0 +1,9 @@
+#!/bin/bash
+# NEFI OS - uscita di emergenza dall'Incident Response Mode, senza il Security Center.
+# Da un terminale o da una console (Ctrl+Alt+F3):   sudo nefi-ir-recover
+# Toglie l'isolamento della rete, sblocca i log, annulla il ripristino automatico e rimette lo stato a "normale".
+if [ "$(id -u)" != "0" ]; then
+    echo "Run it as administrator:  sudo nefi-ir-recover" >&2
+    exit 1
+fi
+exec /bin/bash /opt/nefi/ir/deactivate.sh --force

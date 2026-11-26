@@ -1,0 +1,4 @@
+## NEFI OS - catena di custodia: il kernel registra ogni accesso all'archivio delle prove e alla chiave di firma,
+## anche quelli fatti senza passare dagli strumenti NEFI (ricerca: ausearch -k nefi_evidence)
+-w /var/lib/nefi/forensics/ -p rwa -k nefi_evidence
+-w /var/lib/nefi/forensics-keys/ -p rwa -k nefi_evidence_key
