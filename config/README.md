@@ -19,6 +19,6 @@ Version 0.1 was built with `live-build`. These files are **not used by the curre
 - `bootloaders/`, `package-lists/`, `hooks/live/`
 - the hooks in `hooks/normal/` numbered `1000` and above (standard live-build hooks)
 
-> **Do not delete them yet.** `packages/nefi-pkgs-gen.sh` still reads the `chroot/` folder produced by an old live-build run, to find files that belong to Debian packages. Removing live-build would remove the only way to regenerate it. This dependency must be replaced first.
+Since 0.4 the build no longer depends on them: `packages/nefi-pkgs-gen.sh` finds the files that belong to Debian packages from the Debian archive *Contents* index, not from an old live-build `chroot/` folder. They can be moved to `legacy/` in a future cleanup.
 
 See [Repository layout](https://nefi-os.gitbook.io/docs/project/development/repository-layout).
