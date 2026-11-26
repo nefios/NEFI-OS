@@ -1,0 +1,25 @@
+[Unit]
+Description=NEFI OS - Detection engine (rules, correlation, integrity and persistence monitoring)
+Documentation=file:///usr/share/nefi/detection/rules
+After=auditd.service network.target
+Wants=auditd.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /opt/nefi/detection/detectd.py
+Restart=on-failure
+RestartSec=10
+Nice=5
+# il motore deve leggere audit, /proc e le case degli utenti; scrive solo nelle sue cartelle
+NoNewPrivileges=yes
+ProtectSystem=full
+ProtectHome=read-only
+PrivateTmp=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+LockPersonality=yes
+ReadWritePaths=/var/lib/nefi /var/log/nefi /etc/nefi
+
+[Install]
+WantedBy=multi-user.target

@@ -149,9 +149,9 @@ class LogViewerWidget(QWidget):
             if "journald" in source:
                 cmd = ["journalctl", "-n", "200", "--no-pager", "-o", "short-iso"]
             elif "dmesg" in source:
-                cmd = ["dmesg", "-T", "--level=err,warn,notice"]
+                cmd = ["journalctl", "-k", "-p", "notice", "-n", "200", "--no-pager"]   # dmesg is root-only (dmesg_restrict=1)
             elif "Authentication" in source:
-                cmd = ["journalctl", "-u", "ssh", "-u", "sudo", "-n", "200", "--no-pager"]
+                cmd = ["journalctl", "-n", "200", "--no-pager", "_SYSTEMD_UNIT=ssh.service", "+", "_COMM=sudo"]   # sudo is not a unit
             elif "auditd" in source:
                 cmd = ["journalctl", "-u", "auditd", "-n", "200", "--no-pager"]
             elif "Suricata" in source:
@@ -159,11 +159,13 @@ class LogViewerWidget(QWidget):
             elif "ClamAV" in source:
                 cmd = ["journalctl", "-u", "clamav-daemon", "-n", "200", "--no-pager"]
             elif "nftables" in source:
-                cmd = ["journalctl", "-u", "nftables", "-n", "200", "--no-pager"]
+                cmd = ["journalctl", "-k", "-g", "NEFI-", "-n", "200", "--no-pager"]   # packets dropped by NEFI rules (kernel log)
             else:
                 return "Source not available"
 
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if not result.stdout.strip() and "insufficient permissions" in result.stderr.lower():
+                return "No permission to read the system journal. Your user must be in the systemd-journal group."
             return result.stdout or "No logs available for this source."
         except Exception as e:
             return f"Error reading logs: {e}"

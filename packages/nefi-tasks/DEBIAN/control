@@ -1,8 +1,8 @@
 Package: nefi-tasks
-Version: 0.3+202611041242
+Version: 0.4
 Architecture: all
 Installed-Size: 24
-Maintainer: NEFI OS Project <327490202+nefios@users.noreply.github.com>
+Maintainer: NEFI OS Developers <osnefi@gmail.com>
 Depends: tasksel
 Section: admin
 Priority: optional

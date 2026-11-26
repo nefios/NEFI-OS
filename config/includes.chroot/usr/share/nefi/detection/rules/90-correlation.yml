@@ -1,0 +1,33 @@
+# NEFI OS - correlazione tra rilevamenti diversi (formato Sigma correlations).
+title: Several attack stages on this machine in a short time
+id: nefi-corr-multi-stage
+description: Detections belonging to three or more different MITRE ATT&CK tactics fired within 15 minutes. One alert alone may be a false positive; several stages together look like a real intrusion in progress.
+level: critical
+correlation:
+  type: value_count
+  rules: ['*']
+  group-by: [Host]
+  timespan: 15m
+  condition: {field: Tactic, gte: 3}
+---
+title: Suspicious program followed by a new persistence entry
+id: nefi-corr-exec-persistence
+description: A program ran from a temporary directory and, within 10 minutes, a new autorun entry appeared.
+level: critical
+tags: [attack.execution, attack.persistence]
+correlation:
+  type: temporal
+  rules: [nefi-proc-temp-exec, nefi-state-persistence-new]
+  group-by: [Host]
+  timespan: 10m
+---
+title: Password hashes read and a new program on the network
+id: nefi-corr-cred-network
+description: An unusual program read the password hashes and, within 10 minutes, a program never seen before opened an Internet connection.
+level: critical
+tags: [attack.credential_access, attack.exfiltration]
+correlation:
+  type: temporal
+  rules: [nefi-audit-cred-read, nefi-net-first-seen]
+  group-by: [Host]
+  timespan: 10m

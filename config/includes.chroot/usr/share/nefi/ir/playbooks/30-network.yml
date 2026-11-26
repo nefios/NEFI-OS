@@ -1,0 +1,44 @@
+id: network-intrusion
+title: Suspicious network activity
+description: An IDS alert, a connection to a known-bad address, unusual DNS traffic or an unknown program talking to the Internet.
+categories: [network-intrusion, denial-of-service]
+steps:
+  - id: identify
+    phase: Identification
+    title: Find which program is talking
+    help: Monitoring > Network IDS shows the alert and the remote address; Monitoring > Network Monitor shows which process owns the connection right now. Detection > Threat Hunting finds when that program first ran.
+    page: netids
+  - id: capture
+    phase: Evidence
+    title: Record the traffic
+    help: Ten minutes of packets, 200 MB at most, linked to this incident. Do it BEFORE isolating - afterwards there is nothing left to record. Preserve it as evidence from Monitoring > Packet Capture when it ends.
+    action: capture
+    page: pcap
+  - id: evidence
+    phase: Evidence
+    title: Collect live evidence
+    help: Open connections, processes and logs in a signed archive.
+    action: collect-evidence
+    page: evidence
+  - id: block
+    phase: Containment
+    title: Block the remote address or domain
+    help: Response > Containment > Indicators. Blocking one address is enough when you know the destination; if the program contacts many addresses, go to the next step.
+    page: contain
+  - id: isolate
+    phase: Containment
+    title: Isolate the machine if the traffic continues
+    help: Cuts every connection. Skip this step, writing why, if blocking the indicator was enough.
+    action: isolate
+    page: ir
+  - id: process
+    phase: Eradication
+    title: Deal with the program
+    help: Freeze it, then terminate it and quarantine its file in Response > Containment. If it is a legitimate program that was abused, update or reconfigure it instead.
+    page: contain
+  - id: recover
+    phase: Recovery
+    title: Run the recovery checklist
+    help: Verifies isolation, logs, monitoring and system files.
+    action: recovery-check
+    page: recovery

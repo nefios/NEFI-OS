@@ -1,10 +1,58 @@
 #!/bin/bash
 # NEFI Forensics Collector
+# Le prove (log di autenticazione, argomenti dei processi, rete, memoria) sono dati sensibili:
+#   /var/lib/nefi/forensics                 root:sudo 0750  gli amministratori vedono SOLO i nomi
+#   <raccolta>/ e sottocartelle             root:root 0700
+#   file, archivio .tar.gz, MANIFEST        root:root 0600
+#   archivio.sha256                         root:sudo 0640  solo l'hash (mostrato dal Security Center)
+# Valido qualunque sia l'umask di chi lancia lo script.
 set -e
+umask 077
+
+if [ "$(id -u)" -ne 0 ]; then
+    echo "[NEFI] ERROR: run as root (pkexec)." >&2
+    exit 1
+fi
+
+BASE="/var/lib/nefi/forensics"
+# dfir.py passa la cartella dell'archivio delle prove (anche un disco esterno) e l'identificativo univoco
+if [ -n "${NEFI_EV_BASE:-}" ]; then
+    case "$NEFI_EV_BASE" in /*) [ -d "$NEFI_EV_BASE" ] && BASE="$NEFI_EV_BASE" ;; esac
+fi
+ADMIN_GROUP="sudo"
+getent group "$ADMIN_GROUP" > /dev/null || ADMIN_GROUP="root"
+
+install -d -m 0755 -o root -g root /var/lib/nefi
+install -d -m 0750 -o root -g "$ADMIN_GROUP" "$BASE"
+chown root:"$ADMIN_GROUP" "$BASE"
+chmod 0750 "$BASE"
+
+# prove raccolte dalle versioni precedenti (create con permessi aperti): le chiudo.
+# Solo quelle: manifest, indice e registro di custodia hanno i loro permessi (vedi custody.py).
+for old in "$BASE"/20[0-9][0-9]-[0-9][0-9]-[0-9][0-9]_*; do
+    [ -d "$old" ] && [ ! -L "$old" ] || continue
+    chown -R root:root "$old"
+    chmod -R u=rwX,go= "$old"
+done
+for old in "$BASE"/evidence-*.tar.gz; do
+    [ -f "$old" ] && [ ! -L "$old" ] || continue
+    chown root:root "$old"; chmod 0600 "$old"
+    [ -f "$old.sha256" ] && { chown root:"$ADMIN_GROUP" "$old.sha256"; chmod 0640 "$old.sha256"; }
+done
 
 TIMESTAMP=$(date +%Y-%m-%d_%H-%M-%S)
-OUTPUT_DIR="/var/lib/nefi/forensics/$TIMESTAMP"
-mkdir -p "$OUTPUT_DIR"
+NAME="$TIMESTAMP"
+ARCHIVE_NAME="evidence-$TIMESTAMP"
+if [[ "${NEFI_EV_NAME:-}" =~ ^NEFI-EV-[0-9]{8}-[0-9]{6}-[0-9a-f]{4}$ ]]; then
+    NAME="$NEFI_EV_NAME"
+    ARCHIVE_NAME="$NEFI_EV_NAME"
+fi
+OUTPUT_DIR="$BASE/$NAME"
+if [ -e "$OUTPUT_DIR" ]; then
+    echo "[NEFI] ERROR: $OUTPUT_DIR already exists (two collections in the same second)." >&2
+    exit 1
+fi
+install -d -m 0700 -o root -g root "$OUTPUT_DIR"
 
 echo "[NEFI] Starting evidence collection: $OUTPUT_DIR"
 echo "[NEFI] Timestamp: $TIMESTAMP"
@@ -17,7 +65,7 @@ hostname >> "$OUTPUT_DIR/system/uname.txt"
 date >> "$OUTPUT_DIR/system/uname.txt"
 uptime >> "$OUTPUT_DIR/system/uptime.txt"
 who > "$OUTPUT_DIR/system/logged-users.txt"
-last -20 > "$OUTPUT_DIR/system/last-logins.txt" 2>/dev/null || echo "last command not available" > "$OUTPUT_DIR/system/last-logins.txt" 2>/dev/null || echo "last command not available" > "$OUTPUT_DIR/system/last-logins.txt"
+last -20 > "$OUTPUT_DIR/system/last-logins.txt" 2>/dev/null || echo "last command not available" > "$OUTPUT_DIR/system/last-logins.txt"
 id > "$OUTPUT_DIR/system/current-user.txt"
 
 # ── 2. Process snapshot ─────────────────────────────────
@@ -70,35 +118,24 @@ ls -la /etc/cron.daily/ >> "$OUTPUT_DIR/persistence/cron-d.txt" 2>/dev/null || t
 systemctl list-units --type=service --state=enabled > "$OUTPUT_DIR/persistence/enabled-services.txt" 2>/dev/null || true
 ls -la /etc/systemd/system/ > "$OUTPUT_DIR/persistence/systemd-units.txt" 2>/dev/null || true
 
-# ── 7. RAM dump (se possibile) ──────────────────────────
-echo "[NEFI] Attempting RAM acquisition..."
+# ── 7. Memoria ──────────────────────────────────────────
+# La RAM non si acquisisce piu' qui: i vecchi 64 MB letti da /dev/mem non erano una prova utilizzabile.
+# L'acquisizione completa e verificata (AVML) e' una prova a se': DFIR > Memory Forensics.
 mkdir -p "$OUTPUT_DIR/memory"
-RAM_SIZE=$(free -m | awk '/^Mem:/{print $2}')
-DISK_FREE=$(df -m /var/lib/nefi | awk 'NR==2{print $4}')
+{
+    echo "Memory is acquired separately as its own signed evidence (DFIR > Memory Forensics, AVML)."
+    echo "RAM installed: $(free -m | awk '/^Mem:/{print $2}') MB"
+    echo "Kernel lockdown: $(cat /sys/kernel/security/lockdown 2>/dev/null || echo unknown)"
+} > "$OUTPUT_DIR/memory/README.txt"
 
-if [ "$DISK_FREE" -gt "$RAM_SIZE" ]; then
-    echo "[NEFI] Sufficient disk space. Starting RAM dump ($RAM_SIZE MB)..."
-    if command -v avml &>/dev/null; then
-        avml "$OUTPUT_DIR/memory/ram.lime" 2>/dev/null && \
-            echo "[NEFI] RAM dump completed with avml." || \
-            echo "[NEFI] avml failed."
-    else
-        dd if=/dev/mem of="$OUTPUT_DIR/memory/ram-partial.bin" bs=1M count=64 2>/dev/null && \
-            echo "[NEFI] Partial RAM dump (64MB) completed." || \
-            echo "[NEFI] RAM dump not available (restricted /dev/mem)."
-    fi
-else
-    echo "[NEFI] WARNING: Insufficient disk space for RAM dump. Skipping."
-    echo "Disk free: ${DISK_FREE}MB, RAM: ${RAM_SIZE}MB" > "$OUTPUT_DIR/memory/ram-dump-skipped.txt"
-fi
-
-# ── 8. Timeline ─────────────────────────────────────────
-echo "[NEFI] Building timeline..."
+# ── 8. Timeline (prima ispezione) ───────────────────────
+# Qui solo un'istantanea veloce. La timeline forense strutturata (tempi MACB, journal, accessi,
+# pacchetti, browser, avvisi) si costruisce da DFIR > Timeline.
+echo "[NEFI] Building quick timeline..."
 mkdir -p "$OUTPUT_DIR/timeline"
-find / -newer /tmp -not -path "/proc/*" -not -path "/sys/*" \
-    -not -path "/dev/*" -not -path "/run/*" \
-    -printf "%T+ %p\n" 2>/dev/null | sort -r | head -500 \
-    > "$OUTPUT_DIR/timeline/recently-modified-files.txt" || true
+find /etc /home /root /tmp /var/tmp /usr/local /opt -xdev -mtime -2 -type f \
+    -printf "%TY-%Tm-%TdT%TH:%TM:%.2TS%Tz %p\n" 2>/dev/null | sort -r | head -2000 \
+    > "$OUTPUT_DIR/timeline/files-modified-last-48h.txt" || true
 
 journalctl --since "24 hours ago" --no-pager -o short-iso \
     > "$OUTPUT_DIR/timeline/last-24h-events.txt" 2>/dev/null || true
@@ -109,11 +146,23 @@ find "$OUTPUT_DIR" -type f -not -name "MANIFEST.txt" \
     -exec sha256sum {} \; > "$OUTPUT_DIR/MANIFEST.txt"
 
 echo "[NEFI] Creating compressed archive..."
-ARCHIVE="/var/lib/nefi/forensics/evidence-$TIMESTAMP.tar.gz"
-tar -czf "$ARCHIVE" -C "/var/lib/nefi/forensics" "$TIMESTAMP" 2>/dev/null
+ARCHIVE="$BASE/$ARCHIVE_NAME.tar.gz"
+tar -czf "$ARCHIVE" -C "$BASE" "$NAME" 2>/dev/null
 
 SHA256=$(sha256sum "$ARCHIVE" | awk '{print $1}')
-echo "$SHA256  evidence-$TIMESTAMP.tar.gz" > "$ARCHIVE.sha256"
+echo "$SHA256  $ARCHIVE_NAME.tar.gz" > "$ARCHIVE.sha256"
+
+# ── 10. Permessi finali (anche per file creati da programmi che ignorano l'umask) ──
+chown -R root:root "$OUTPUT_DIR" "$ARCHIVE"
+chmod -R u=rwX,go= "$OUTPUT_DIR"
+chmod 0600 "$ARCHIVE"
+chown root:"$ADMIN_GROUP" "$ARCHIVE.sha256"
+chmod 0640 "$ARCHIVE.sha256"
+if [ -n "$(find "$OUTPUT_DIR" "$ARCHIVE" -perm /077 -print -quit)" ]; then
+    echo "[NEFI] ERROR: some evidence files are still readable by other users." >&2
+    exit 1
+fi
+echo "[NEFI] Permissions: evidence readable by root only."
 
 echo ""
 echo "[NEFI] ══════════════════════════════════════════"

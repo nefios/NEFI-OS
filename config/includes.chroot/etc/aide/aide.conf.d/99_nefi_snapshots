@@ -1,0 +1,2 @@
+# NEFI OS: non controllare le snapshot di Snapper (Btrfs)
+!/\.snapshots($|/)

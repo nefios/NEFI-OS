@@ -6,7 +6,10 @@ import json
 import os
 from datetime import datetime
 
-LOG_FILE = "/var/log/nefi/honeypot-ssh.json"
+# The honeypot runs as the logged-in user (started by the Security Center), so it logs
+# in the user's data folder: /var/log/nefi is writable only by root.
+LOG_FILE = os.path.join(os.environ.get("XDG_DATA_HOME") or os.path.expanduser("~/.local/share"),
+                        "nefi", "honeypot-ssh.json")
 PORT = 2222
 
 def log_event(ip, port, data):

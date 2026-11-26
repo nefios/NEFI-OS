@@ -1,0 +1,12 @@
+[Unit]
+Description=NEFI OS - update the SigmaHQ detection rules for Linux
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /opt/nefi/detection/ctl.py sigma-update
+Nice=10
+NoNewPrivileges=yes
+ProtectHome=yes
+PrivateTmp=yes

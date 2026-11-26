@@ -9,3 +9,5 @@ git
 htop
 util-linux
 iproute2
+btrfs-progs
+snapper

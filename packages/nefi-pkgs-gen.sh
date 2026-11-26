@@ -7,25 +7,44 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 umask 022
-VER="0.3"
-MAINT="NEFI OS Project <327490202+nefios@users.noreply.github.com>"
+VER="0.4"
+MAINT="NEFI OS Developers <osnefi@gmail.com>"
 LB="${NEFI_REPO:-$(cd .. && pwd)}"
 SRC="$LB/config/includes.chroot"
 HOOKS="$LB/config/hooks/normal"
-CHROOT="$LB/chroot"
 PKGS="nefi-security-center nefi-desktop nefi-ollama"
 [ -d "$SRC" ] || { echo "Manca $SRC"; exit 1; }
 
 TMPD="$(mktemp -d)"; trap 'rm -rf "$TMPD"' EXIT
 for p in $PKGS; do rm -rf "$p"; mkdir -p "$p/DEBIAN"; done
 
-# File che appartengono gia' a un pacchetto Debian (letti dall'ultima build live):
-# non si possono sovrascrivere, quindi vengono "deviati" con dpkg-divert.
+# Files that already belong to a Debian package cannot be overwritten: they are "diverted" with dpkg-divert.
+# The list comes from the Debian archive's Contents index, downloaded from the same mirror as the installer
+# build and cached in installer/tmp/contents/. NEFI_SKIP_DEBIAN_CHECK=1 skips the check (offline test builds only).
 OWNED="$TMPD/owned"; : > "$OWNED"
-if ls "$CHROOT"/var/lib/dpkg/info/*.list > /dev/null 2>&1; then
-  cat "$CHROOT"/var/lib/dpkg/info/*.list | sort -u > "$OWNED"
+DIST="trixie"
+CONTENTS_DIR="$LB/installer/tmp/contents"
+MIRROR_URL="$(sed -n 's/^debian_mirror="\(.*\)"/\1/p' "$LB/installer/nefi.conf")"; MIRROR_URL="${MIRROR_URL%/}"
+if [ "${NEFI_SKIP_DEBIAN_CHECK:-0}" = 1 ]; then
+  echo "   WARNING: NEFI_SKIP_DEBIAN_CHECK=1: Debian-owned files are NOT checked. Do not publish this build."
 else
-  echo "   ATTENZIONE: $CHROOT non c'e' (build live pulita): salto il controllo dei file di Debian"
+  mkdir -p "$CONTENTS_DIR"
+  for idx in Contents-all.gz Contents-amd64.gz; do
+    if ! wget -q -N -P "$CONTENTS_DIR" "$MIRROR_URL/dists/$DIST/main/$idx"; then
+      if [ -s "$CONTENTS_DIR/$idx" ]; then
+        echo "   WARNING: cannot update $idx, using the cached copy"
+      else
+        echo "ERROR: cannot download $idx from $MIRROR_URL (NEFI_SKIP_DEBIAN_CHECK=1 builds without the check)" >&2
+        exit 1
+      fi
+    fi
+  done
+  # Contents line: "<path> <section/package>[,...]". The path has no leading slash and may contain spaces.
+  ( cd "$SRC" && find . -mindepth 1 \( -type f -o -type l \) -printf '%P\n' ) > "$TMPD/nefi-paths"
+  zcat "$CONTENTS_DIR/Contents-all.gz" "$CONTENTS_DIR/Contents-amd64.gz" \
+    | awk 'NR == FNR { want[$0]; next } { p = $0; sub(/[ \t]+[^ \t]+$/, "", p); if (p in want) print "/" p }' "$TMPD/nefi-paths" - \
+    | sort -u > "$OWNED"
+  echo "   NEFI files that belong to Debian packages (diverted): $(wc -l < "$OWNED")"
 fi
 
 # 1. Smistamento dei file di includes.chroot nei tre pacchetti
@@ -36,7 +55,7 @@ while IFS= read -r f; do
       pkg=nefi-ollama ;;
     etc/nftables.conf|etc/rkhunter.conf.local|etc/sysctl.d/*nefi*|etc/audit/rules.d/*nefi*|etc/ssh/sshd_config.d/*nefi*|\
     usr/bin/nefi-*|usr/lib/nefi/*|opt/nefi/*|usr/share/nefi/*|usr/share/applications/nefi-*|\
-    etc/xdg/autostart/nefi-*|etc/systemd/system/nefi-*|etc/udev/rules.d/*nefi*|\
+    etc/aide/aide.conf.d/*|etc/xdg/autostart/nefi-*|etc/systemd/system/nefi-*|etc/udev/rules.d/*nefi*|\
     usr/share/icons/*/nefi-security-center.*)
       pkg=nefi-security-center ;;
     usr/share/plasma/*|usr/share/color-schemes/*|usr/share/wallpapers/*|usr/share/icons/*|\
@@ -145,7 +164,7 @@ scripts() { # scripts <pkg> <comandi extra per postinst>
 }
 
 control nefi-security-center all admin \
-  "python3, python3-pyqt6, python3-pyqt6.qtsvg, python3-psutil, python3-requests, pkexec, polkitd, udisks2, util-linux, iproute2, apparmor, auditd, nftables, aide, aide-common, fonts-noto-color-emoji, libpam-tmpdir, libpam-pwquality, apt-listchanges, needrestart, fail2ban, python3-systemd, debsums, apt-show-versions, acct, sysstat, libnotify-bin, debsecan" \
+  "python3, python3-pyqt6, python3-pyqt6.qtsvg, python3-psutil, python3-requests, gnupg, python3-yaml, pkexec, polkitd, udisks2, util-linux, iproute2, apparmor, auditd, nftables, aide, aide-common, fonts-noto-color-emoji, libpam-tmpdir, libpam-pwquality, apt-listchanges, needrestart, fail2ban, python3-systemd, debsums, apt-show-versions, acct, sysstat, libnotify-bin, debsecan" \
   "python3-twisted, netcat-openbsd, firejail, snapper, btrfs-progs, mokutil, keepassxc, lynis" \
   "nefi-ollama, suricata, yara, clamav, rkhunter, chkrootkit" \
   "NEFI Security Center - unified Blue Team console" \

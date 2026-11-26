@@ -5,7 +5,7 @@
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
-VERSION="${NEFI_VERSION:-0.3}"
+VERSION="${NEFI_VERSION:-0.4}"
 IN="${1:-$HERE/images/debian-13-amd64-DVD-1.iso}"
 OUT="${2:-$HERE/images/nefi-os-$VERSION-amd64.iso}"
 ASSETS="$REPO/branding/installer"
@@ -77,6 +77,11 @@ map_file "$W/nefi-bg.png" /boot/grub/nefi-bg.png
 # Lo sfondo si disegna SOLO nel tema: niente immagine ripetuta all'avvio dell'installer
 sed -i -e 's#^if background_image .*; then#if true; then#' \
        -e 's#Debian GNU/Linux#NEFI OS#g' "$W/grub.cfg"
+# NEFI: niente riquadro nero quando parte l'installazione grafica
+#  - il terminale di GRUB (a schermo intero con le righe terminal-* del tema) usa lo stesso sfondo del menu
+#  - solo "Graphical install": niente messaggi del kernel prima dell'installer
+sed -i -E '0,/^[[:space:]]*set theme=/ s#^([[:space:]]*set theme=.*)#\1\nbackground_image -m stretch /boot/grub/nefi-bg.png#' "$W/grub.cfg"
+sed -i "/'Graphical install'/,/^[[:space:]]*}/ s# --- quiet# loglevel=3 --- quiet#" "$W/grub.cfg"
 map_file "$W/grub.cfg" /boot/grub/grub.cfg
 python3 - "$W/theme" << 'PYEOF'
 import sys, os
@@ -96,6 +101,7 @@ for f in "$W"/theme/*; do
   esac
   sed -i -e 's#^title-text:.*#title-text: ""#' \
     -e 's#^desktop-image:.*#desktop-image: "/boot/grub/nefi-bg.png"#' \
+    -e '/^desktop-image:/a terminal-left: "0"\nterminal-top: "0"\nterminal-width: "100%"\nterminal-height: "100%"\nterminal-border: "0"' \
     -e 's#^desktop-color:.*#desktop-color: "\#010f00"#' \
     -e 's#Debian GNU/Linux#NEFI OS#g' \
     -e 's#UEFI Installer menu#installer menu (UEFI mode)#' \

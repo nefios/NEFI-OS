@@ -1,0 +1,107 @@
+# NEFI OS - file esca, YARA e osquery.
+title: Canary file touched
+id: nefi-canary-access
+description: A decoy file created by NEFI (fake passwords or keys that nobody has a reason to open) was read, changed or deleted. Legitimate programs do not touch these files, so this is a strong sign that someone is searching the machine for credentials.
+level: critical
+tags: [attack.credential_access, attack.discovery, attack.t1552.001, attack.t1083]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': nefi_canary}
+  filter_index:
+    'Image|endswith': [/baloo_file, /baloo_file_extractor, /baloorunner, /tracker-extract-3, /tracker-miner-fs-3,
+                       /updatedb.plocate, /aide, /clamscan, /clamd, /debsums, /rkhunter, /chkrootkit, /lynis]
+  condition: selection and not filter_index
+falsepositives: [Backup software reading the whole home directory, You opening the file yourself]
+nefi_title: 'Canary file touched by {Image} ({User}): {TargetFilename}'
+nefi_dedup: [Image, TargetFilename]
+---
+title: YARA rule matched a suspicious file
+id: nefi-yara-match
+description: A file that was just executed from a temporary directory, or that appeared as a new autorun entry or SUID program, matches one or more YARA malware signatures from the threat-intelligence feeds.
+level: critical
+tags: [attack.execution, attack.resource_development, attack.t1587.001, attack.t1204]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: yara}
+  condition: selection
+falsepositives: [Generic YARA rules matching packers or security tools]
+nefi_title: 'YARA match on {Item}: {YaraRules}'
+nefi_dedup: [Sha256]
+---
+title: Process running from a deleted program file
+id: nefi-osquery-deleted-binary
+description: osquery found a running process whose program file no longer exists on disk. Malware often deletes itself after starting; a package update of a running program produces the same picture.
+level: medium
+tags: [attack.defense_evasion, attack.t1070.004]
+logsource: {product: linux, service: osquery}
+detection:
+  selection: {OsqueryName: process_deleted_binary, Action: added}
+  filter_update: {'path|startswith': [/usr/, /opt/, /snap/]}
+  condition: selection and not filter_update
+falsepositives: [Programs updated while running]
+nefi_title: 'Process running from a deleted file: {path} (pid {pid})'
+nefi_dedup: [path]
+---
+title: Library preloaded into a process (LD_PRELOAD)
+id: nefi-osquery-ld-preload
+description: A process was started with LD_PRELOAD, which forces a library into it. Used by some legitimate tools, and by user-space rootkits and credential stealers.
+level: medium
+tags: [attack.defense_evasion, attack.persistence, attack.t1574.006]
+logsource: {product: linux, service: osquery}
+detection:
+  selection: {OsqueryName: process_ld_preload, Action: added}
+  condition: selection
+falsepositives: [Steam, libgtk3-nocsd, proxychains, debugging and profiling tools]
+nefi_title: 'LD_PRELOAD in process {pid}: {value}'
+nefi_dedup: [value]
+---
+title: New USB device connected
+id: nefi-osquery-usb
+description: osquery saw a USB device that was not connected before.
+level: low
+tags: [attack.initial_access, attack.t1200]
+logsource: {product: linux, service: osquery}
+detection:
+  selection: {OsqueryName: usb_devices, Action: added}
+  condition: selection
+falsepositives: [Any device you plug in yourself]
+nefi_title: 'New USB device: {vendor} {model}'
+nefi_dedup: [vendor, model, serial]
+---
+title: Remote login session opened
+id: nefi-osquery-remote-login
+description: A user session coming from another machine (SSH or similar) started.
+level: low
+tags: [attack.lateral_movement, attack.initial_access, attack.t1021.004, attack.t1078]
+logsource: {product: linux, service: osquery}
+detection:
+  selection: {OsqueryName: logged_in_users, Action: added}
+  filter_local: {host: ['', 'localhost', ':0', ':1', 'login screen']}
+  condition: selection and not filter_local
+falsepositives: [You or another administrator connecting with SSH]
+nefi_title: 'Remote login: {user} from {host}'
+nefi_dedup: [user, host]
+---
+title: Entry added to /etc/hosts
+id: nefi-osquery-hosts
+description: A name was pinned to an address in /etc/hosts. This can silently redirect update servers, banking or security sites.
+level: medium
+tags: [attack.impact, attack.defense_evasion, attack.t1565.001]
+logsource: {product: linux, service: osquery}
+detection:
+  selection: {OsqueryName: etc_hosts, Action: added}
+  condition: selection
+falsepositives: [Administrator adding a local name, VPN or container software]
+nefi_title: 'New /etc/hosts entry: {hostnames} -> {address}'
+---
+title: New APT software source
+id: nefi-osquery-apt-source
+description: A package repository was added. Every package installed from it runs as root during installation.
+level: medium
+tags: [attack.persistence, attack.initial_access, attack.t1195]
+logsource: {product: linux, service: osquery}
+detection:
+  selection: {OsqueryName: apt_sources, Action: added}
+  condition: selection
+falsepositives: [NEFI one-click installers (Falco, CrowdSec, osquery, Wazuh), Software you added on purpose]
+nefi_title: 'New APT source: {name} {base_uri}'

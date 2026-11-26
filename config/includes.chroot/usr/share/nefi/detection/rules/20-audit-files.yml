@@ -1,0 +1,141 @@
+# NEFI OS - regole sugli eventi del kernel (auditd): accesso e modifica di file sensibili.
+title: Password hash file read by an unusual program
+id: nefi-audit-cred-read
+description: /etc/shadow or /etc/gshadow was opened by a program that normally has no reason to read password hashes.
+level: high
+tags: [attack.credential_access, attack.t1003.008]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': nefi_cred, Success: 'yes'}
+  filter_auth:
+    'Image|endswith': [/sshd, /sshd-session, /sshd-auth, /sudo, /su, /login, /passwd, /chage, /unix_chkpwd, /sddm-helper,
+                       /polkit-agent-helper-1, /cron, /systemd, /useradd, /usermod, /userdel, /groupadd, /groupdel,
+                       /groupmod, /gpasswd, /chpasswd, /newusers, /pwck, /grpck, /vipw, /chfn, /chsh, /expiry,
+                       /accounts-daemon, /kcheckpass, /kscreenlocker_greet, /atd, /pkexec, /newgrp, /runuser,
+                       /systemd-sysusers, /adduser, /deluser, /lightdm, /gdm-session-worker]
+  filter_tools:
+    'Image|endswith': [/aide, /debsums, /rkhunter, /lynis, /chkrootkit, /dpkg, /clamscan, /clamd, /tar, /rsync,
+                       /timeshift, /snapper, /borg, /restic]
+  condition: selection and not filter_auth and not filter_tools
+falsepositives: [Backup software, Security scanners run by the administrator]
+nefi_title: 'Password hashes read by {Image}'
+---
+title: Account database changed by an unusual program
+id: nefi-audit-identity-write
+description: /etc/passwd, /etc/shadow, /etc/group or /etc/gshadow was written by a program that is not one of the standard account tools.
+level: high
+tags: [attack.persistence, attack.t1098, attack.t1136.001]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': identity, Success: 'yes'}
+  filter_tools:
+    'Image|endswith': [/useradd, /usermod, /userdel, /groupadd, /groupdel, /groupmod, /gpasswd, /passwd, /chage,
+                       /chpasswd, /newusers, /vipw, /vigr, /chfn, /chsh, /pwck, /grpck, /dpkg, /systemd-sysusers,
+                       /accounts-daemon, /adduser, /deluser, /perl, /pwconv, /grpconv, /shadowconfig]
+  condition: selection and not filter_tools
+nefi_title: 'Account database written by {Image}: {TargetFilename}'
+---
+title: Sudo configuration changed
+id: nefi-audit-sudoers
+description: /etc/sudoers or a file in /etc/sudoers.d was written. This decides who can become root.
+level: high
+tags: [attack.privilege_escalation, attack.t1548.003]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': privilege, 'TargetFilename|startswith': /etc/sudoers, Success: 'yes'}
+  filter_pkg: {'Image|endswith': [/dpkg, /visudo]}
+  condition: selection and not filter_pkg
+falsepositives: [Administrator editing sudoers without visudo]
+nefi_title: 'Sudo configuration written by {Image}: {TargetFilename}'
+---
+title: Authentication (PAM) configuration changed
+id: nefi-audit-pam
+description: A file in /etc/pam.d or /etc/security was written. PAM decides how every login and password check works.
+level: high
+tags: [attack.credential_access, attack.persistence, attack.t1556.003]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': nefi_pam, Success: 'yes'}
+  filter_pkg: {'Image|endswith': [/dpkg, /pam-auth-update, /perl]}
+  condition: selection and not filter_pkg
+falsepositives: [NEFI hardening profiles, Administrator changes]
+nefi_title: 'PAM configuration written by {Image}: {TargetFilename}'
+---
+title: Dynamic linker configuration written
+id: nefi-audit-preload
+description: /etc/ld.so.preload or /etc/ld.so.conf.d was written. A preloaded library runs inside every program.
+level: critical
+tags: [attack.persistence, attack.defense_evasion, attack.t1574.006]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': nefi_preload, Success: 'yes'}
+  filter_pkg: {'Image|endswith': [/dpkg, /ldconfig, /ldconfig.real]}
+  condition: selection and not filter_pkg
+nefi_title: 'Dynamic linker configuration written by {Image}: {TargetFilename}'
+---
+title: NEFI security software modified
+id: nefi-audit-nefi-code
+description: A file of the NEFI Security Center or of its root helpers (/opt/nefi, /usr/lib/nefi) was written outside the package manager.
+level: critical
+tags: [attack.defense_evasion, attack.t1562.001]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {AuditKey: nefi, Success: 'yes'}
+  filter_pkg: {'Image|endswith': [/dpkg, /dpkg-deb]}
+  filter_cache: {'TargetFilename|contains': __pycache__}
+  condition: selection and not filter_pkg and not filter_cache
+falsepositives: [Developer testing a module on a test machine]
+nefi_title: 'NEFI file written by {Image}: {TargetFilename}'
+---
+title: Security tool configuration changed
+id: nefi-audit-defense-config
+description: The configuration of a defence (audit, AppArmor, fail2ban, Falco, CrowdSec, Suricata, NEFI) was written outside the package manager.
+level: medium
+tags: [attack.defense_evasion, attack.t1562.001]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': nefi_defense, Success: 'yes'}
+  filter_tool_key: {'AuditKey|contains': nefi_defense_tool}
+  filter_pkg: {'Image|endswith': [/dpkg, /augenrules, /apparmor_parser, /aa-enforce, /aa-complain, /crowdsec, /cscli]}
+  filter_nefi: {'Image|startswith': /usr/bin/python3, 'TargetFilename|startswith': /etc/nefi/detection/}
+  condition: selection and not filter_tool_key and not filter_pkg and not filter_nefi
+falsepositives: [NEFI one-click installers, Administrator changes]
+nefi_title: 'Security configuration written by {Image}: {TargetFilename}'
+---
+title: Firewall configuration changed
+id: nefi-audit-firewall
+description: /etc/nftables.conf was written outside the package manager.
+level: medium
+tags: [attack.defense_evasion, attack.t1562.004]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': firewall, Success: 'yes'}
+  filter_pkg: {'Image|endswith': /dpkg}
+  condition: selection and not filter_pkg
+nefi_title: 'Firewall configuration written by {Image}'
+---
+title: Audit rules changed by a logged-in user
+id: nefi-audit-auditctl
+description: auditctl was run in a user session (not by the system at boot). It can remove or weaken the kernel audit rules this engine relies on.
+level: medium
+tags: [attack.defense_evasion, attack.t1562.012]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {'AuditKey|contains': nefi_defense_tool, 'Image|endswith': /auditctl}
+  filter_system: {LoginUser: unset}
+  condition: selection and not filter_system
+falsepositives: [Administrator listing rules with auditctl -l]
+nefi_title: 'auditctl run by {LoginUser}'
+---
+title: Kernel module loaded from a user session
+id: nefi-audit-module-load
+description: A kernel module was loaded or removed by a process that belongs to a login session (not by the system at boot or by hardware detection).
+level: medium
+tags: [attack.persistence, attack.privilege_escalation, attack.t1547.006]
+logsource: {product: linux, service: auditd}
+detection:
+  selection: {EventType: module_load, Success: 'yes'}
+  filter_system: {LoginUser: unset}
+  condition: selection and not filter_system
+falsepositives: [Administrator loading a driver, VirtualBox or DKMS modules]
+nefi_title: 'Kernel module operation by {LoginUser} ({Image})'

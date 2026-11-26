@@ -1,0 +1,195 @@
+# NEFI OS - regole sullo stato del sistema: differenze rispetto alla baseline APPROVATA.
+# Eventi prodotti dalle scansioni di nefi-detectd (service: nefi, category: state).
+title: Critical system file changed
+id: nefi-state-integrity-modified
+description: A monitored system file no longer matches the approved baseline and does not match its Debian package. Review the change, then approve it or restore the file.
+level: high
+tags: [attack.defense_evasion, attack.impact]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, ClassGroup: integrity, EventType: item_modified}
+  filter_pkg: {PackageVerified: 'true'}
+  condition: selection and not filter_pkg
+falsepositives: [Configuration changed by an administrator, 'Password change (/etc/shadow)']
+nefi_title: 'Critical file changed: {Item}'
+---
+title: Critical system file added or removed
+id: nefi-state-integrity-new-removed
+description: A file appeared in, or disappeared from, a monitored system location (sudoers.d, PAM, SSH, firewall, APT sources, NEFI code).
+level: medium
+tags: [attack.defense_evasion]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, ClassGroup: integrity, EventType: [item_new, item_removed]}
+  condition: selection
+falsepositives: [Package installation or removal]
+nefi_title: 'Critical file {EventType}: {Item}'
+---
+title: New persistence entry
+id: nefi-state-persistence-new
+description: Something new will run automatically (systemd unit, scheduled job, desktop autostart, shell startup file, SSH authorized key, boot script). Attackers use these to survive a reboot.
+level: high
+tags: [attack.persistence]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, ClassGroup: persistence, EventType: item_new}
+  filter_preload: {Class: persistence.preload}
+  condition: selection and not filter_preload
+falsepositives: [Software installed by the administrator, A service enabled on purpose]
+nefi_title: 'New {ItemLabel}: {Item}'
+---
+title: Persistence entry modified
+id: nefi-state-persistence-modified
+description: An existing autorun entry (systemd unit, scheduled job, autostart, shell startup file, SSH authorized keys) was changed.
+level: medium
+tags: [attack.persistence]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, ClassGroup: persistence, EventType: item_modified}
+  filter_preload: {Class: persistence.preload}
+  condition: selection and not filter_preload
+falsepositives: [Package update, Edit by the user]
+nefi_title: '{ItemLabel} modified: {Item}'
+---
+title: Persistence entry removed
+id: nefi-state-persistence-removed
+description: An autorun entry that was in the approved baseline no longer exists.
+level: low
+tags: [attack.persistence]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, ClassGroup: persistence, EventType: item_removed}
+  condition: selection
+nefi_title: '{ItemLabel} removed: {Item}'
+---
+title: Dynamic linker preload configured
+id: nefi-state-preload
+description: /etc/ld.so.preload exists or changed. A library listed there is loaded into every program; it is almost never used legitimately and is a classic user-space rootkit method.
+level: critical
+tags: [attack.persistence, attack.defense_evasion, attack.t1574.006, attack.t1014]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, Class: persistence.preload, EventType: [item_new, item_modified]}
+  condition: selection
+nefi_title: 'Dynamic linker preload changed: {Item}'
+---
+title: New SUID or SGID program
+id: nefi-state-suid-new
+description: A program that runs with the privileges of its owner (often root) appeared, or an existing one changed and does not match its Debian package.
+level: high
+tags: [attack.privilege_escalation, attack.t1548.001]
+logsource: {product: linux, service: nefi}
+detection:
+  new: {category: state, Class: suid, EventType: item_new}
+  changed: {category: state, Class: suid, EventType: item_modified}
+  filter_pkg: {PackageVerified: 'true'}
+  condition: (new or changed) and not filter_pkg
+falsepositives: [Package installed outside APT]
+nefi_title: 'SUID/SGID program {EventType}: {Item}'
+---
+title: Account with root privileges (UID 0) created
+id: nefi-state-account-uid0
+description: A local account other than root has user id 0, which gives it full root privileges.
+level: critical
+tags: [attack.persistence, attack.privilege_escalation, attack.t1136.001]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, Class: account, EventType: [item_new, item_modified], 'NewValue|startswith': 'uid0:'}
+  filter_root: {Item: root}
+  condition: selection and not filter_root
+nefi_title: 'Account with UID 0: {Item}'
+---
+title: Local account created or changed
+id: nefi-state-account
+description: A local account was created, removed, or its user id, home or shell changed.
+level: medium
+tags: [attack.persistence, attack.t1136.001]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, Class: account}
+  condition: selection
+falsepositives: [Account created by the administrator, Package that adds a system user]
+nefi_title: 'Account {EventType}: {Item}'
+---
+title: User added to a privileged group
+id: nefi-state-admin-new
+description: A user was added to a group that grants administration or sensitive access (sudo, adm, shadow, disk, docker).
+level: high
+tags: [attack.privilege_escalation, attack.persistence, attack.t1098]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, Class: admin, EventType: item_new}
+  condition: selection
+falsepositives: [Administrator granting rights on purpose]
+nefi_title: 'New member of a privileged group: {Item}'
+---
+title: New network service listening
+id: nefi-state-listener-new
+description: A program started accepting connections from the network on a port that was not in the approved baseline.
+level: medium
+tags: [attack.command_and_control, attack.persistence, attack.t1571]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: state, Class: listener, EventType: [item_new, item_modified]}
+  condition: selection
+falsepositives: [Service installed or enabled by the administrator, KDE Connect or file sharing started by the user]
+nefi_title: 'New listening port {Item} ({NewValue})'
+---
+title: Hidden kernel module or hidden process
+id: nefi-rootkit-hidden
+description: The kernel reports a module or a process in one place but hides it in another. This inconsistency is typical of kernel rootkits. Treat the machine as compromised until proven otherwise.
+level: critical
+tags: [attack.defense_evasion, attack.t1014]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: rootkit, Indicator: [hidden_module, hidden_process]}
+  condition: selection
+nefi_title: 'Rootkit indicator: {Item}'
+---
+title: Network interface in promiscuous mode
+id: nefi-rootkit-promiscuous
+description: An interface captures all traffic on the network segment, not only its own. Normal while Wireshark, tcpdump or Suricata run; otherwise it can mean traffic sniffing.
+level: medium
+tags: [attack.credential_access, attack.discovery, attack.t1040]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: rootkit, Indicator: promiscuous_interface}
+  condition: selection
+falsepositives: [Wireshark, tcpdump, Suricata, virtual machine bridges]
+nefi_title: 'Promiscuous mode: {Item}'
+---
+title: Unsigned or out-of-tree kernel module loaded
+id: nefi-rootkit-module-taint
+description: The kernel is marked as tainted by a module that is not signed or not part of the official kernel.
+level: low
+tags: [attack.persistence, attack.t1547.006]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: rootkit, Indicator: [unsigned_module, out_of_tree_module]}
+  condition: selection
+falsepositives: [VirtualBox or VMware guest modules, NVIDIA driver, DKMS modules]
+nefi_title: 'Kernel module warning: {Item}'
+---
+title: Rootkit scanner warning
+id: nefi-rootkit-tool
+description: rkhunter or chkrootkit reported a warning in the daily scan. These tools produce false positives; check the message and mark it as false positive if it is expected.
+level: low
+tags: [attack.defense_evasion, attack.t1014]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: rootkit, Indicator: tool_warning}
+  condition: selection
+falsepositives: [Known rkhunter and chkrootkit false positives]
+nefi_title: '{Tool}: {Item}'
+nefi_dedup: [Tool, Item]
+---
+title: Detection log was tampered with
+id: nefi-selfcheck-log
+description: The hash chain of the alert log or of the baseline audit log is broken - a record was removed or changed.
+level: critical
+tags: [attack.defense_evasion, attack.t1070]
+logsource: {product: linux, service: nefi}
+detection:
+  selection: {category: selfcheck, EventType: log_tampered}
+  condition: selection
+nefi_title: 'Detection log integrity failure: {Item}'
