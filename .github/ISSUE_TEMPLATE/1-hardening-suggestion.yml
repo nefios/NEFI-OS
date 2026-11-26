@@ -27,7 +27,7 @@ body:
     id: version
     attributes:
       label: NEFI OS version and environment
-      placeholder: "0.3, QEMU/KVM UEFI, 8 GB RAM"
+      placeholder: "0.4, QEMU/KVM UEFI, 8 GB RAM"
     validations:
       required: true
   - type: textarea

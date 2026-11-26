@@ -30,25 +30,25 @@
 
 ## What is NEFI OS
 
-NEFI OS is plain Debian 13 with KDE Plasma 6, a hardened baseline applied at installation, and the **NEFI Security Center** on top. It is built for system administrators, small security teams and analysts who want a defensive workstation without assembling and maintaining the toolchain themselves.
+NEFI OS is plain Debian 13 with KDE Plasma 6 (default), GNOME or Xfce, a hardened baseline applied at installation, and the **NEFI Security Center** on top. It is built for system administrators, small security teams and analysts who want a defensive workstation without assembling and maintaining the toolchain themselves.
 
-- **Measure:** a Security Score from 61 checks, each backed by evidence from the running system.
-- **Prevent:** hardening profiles, Zero Trust mode, USB Guardian, privacy controls, application sandboxing.
-- **Detect:** EDR, threat intelligence feeds, Lynis audits, honeypots, Falco runtime alerts.
-- **Investigate:** one-click evidence collection, file integrity monitoring with AIDE, log viewer.
-- **Respond:** incident response mode with network isolation, CrowdSec automatic blocking.
+- **Measure:** a Security Score from 61 checks, each backed by evidence from the running system, with the points gained by fixing each one.
+- **Prevent:** hardening profiles, kernel and SSH assessment with one-click fixes, vulnerability management, attack surface view, Zero Trust mode, USB Guardian, privacy controls, application sandboxing.
+- **Detect:** a detection engine with Sigma rules mapped to MITRE ATT&CK, integrity and persistence baseline, threat hunting, Suricata network IDS, Falco runtime alerts, threat intelligence feeds, Lynis audits, honeypots.
+- **Investigate:** evidence with chain of custody, memory, disk and timeline forensics, packet capture, file integrity monitoring with AIDE, log viewer.
+- **Respond:** incidents, playbooks, host isolation, containment and recovery checklists, CrowdSec automatic blocking.
 - **Ask:** NEFI Guardian, a local AI assistant that works offline.
 
 NEFI OS ships no offensive or exploitation tools.
 
-> **Pre-release (0.3).** Validated only in virtual machines. Not recommended for production use or for systems holding critical data. See [Known limitations](https://nefi-os.gitbook.io/docs/project/support/known-limitations).
+> **Pre-release (0.4).** Validated only in virtual machines. Not recommended for production use or for systems holding critical data. See [Known limitations](https://nefi-os.gitbook.io/docs/project/support/known-limitations).
 
 ## Quick start
 
 1. **Download** all the files of the latest release from [Releases](https://github.com/nefios/NEFI-OS/releases) and join the ISO parts:
 
    ```bash
-   cat nefi-os-0.3-amd64.iso.part* > nefi-os-0.3-amd64.iso
+   cat nefi-os-0.4-amd64.iso.part* > nefi-os-0.4-amd64.iso
    ```
 
 2. **Verify** the ISO. Do not skip this step:
@@ -79,7 +79,7 @@ All the documentation is at **[nefi-os.gitbook.io/docs](https://nefi-os.gitbook.
 | User guide | [NEFI Security Center](https://nefi-os.gitbook.io/docs/user-guide/nefi-security-center) · [NEFI Guardian](https://nefi-os.gitbook.io/docs/user-guide/nefi-security-center/nefi-guardian) |
 | Security | [Security by default](https://nefi-os.gitbook.io/docs/user-guide/security/security-by-default) · [Hardening profiles](https://nefi-os.gitbook.io/docs/user-guide/security/hardening-profiles) · [Security Score](https://nefi-os.gitbook.io/docs/user-guide/security/security-score) · [Architecture](https://nefi-os.gitbook.io/docs/user-guide/security/architecture-and-privilege-model) |
 | Development | [Build from source](https://nefi-os.gitbook.io/docs/project/development/build-from-source) · [Repository layout](https://nefi-os.gitbook.io/docs/project/development/repository-layout) · [Packages](https://nefi-os.gitbook.io/docs/project/development/packages) |
-| Releases | [Release notes 0.3](https://nefi-os.gitbook.io/docs/project/releases/release-notes-0.3) · [Changelog](CHANGELOG.md) · [Signing keys](https://nefi-os.gitbook.io/docs/project/releases/signing-keys) |
+| Releases | [Release notes 0.4](https://nefi-os.gitbook.io/docs/project/releases/release-notes-0.4) · [Changelog](CHANGELOG.md) · [Signing keys](https://nefi-os.gitbook.io/docs/project/releases/signing-keys) |
 | Help | [Troubleshooting](https://nefi-os.gitbook.io/docs/project/support/troubleshooting) · [Known limitations](https://nefi-os.gitbook.io/docs/project/support/known-limitations) |
 
 ## Contributing
