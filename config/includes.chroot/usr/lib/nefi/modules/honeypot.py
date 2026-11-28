@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal
 from PyQt6.QtGui import QColor
+from nefi_theme import set_icon
 
 
 class HoneypotProcess(QThread):
@@ -135,7 +136,7 @@ class HoneypotWidget(QWidget):
         self.ssh_card = self._make_service_card(
             "SSH Honeypot", "Port 2222",
             "Simulates an SSH server. Logs brute force attempts and credentials.",
-            "🔐", self._toggle_ssh
+            "lock", self._toggle_ssh
         )
         services_row.addWidget(self.ssh_card[0])
 
@@ -143,7 +144,7 @@ class HoneypotWidget(QWidget):
         self.http_card = self._make_service_card(
             "HTTP Honeypot", "Port 8080",
             "Simulates a router admin panel. Logs web scanners and attacks.",
-            "🌐", self._toggle_http
+            "globe", self._toggle_http
         )
         services_row.addWidget(self.http_card[0])
         layout.addLayout(services_row)
@@ -217,8 +218,9 @@ class HoneypotWidget(QWidget):
         fl.setSpacing(8)
 
         header = QHBoxLayout()
-        icon_lbl = QLabel(icon)
-        icon_lbl.setStyleSheet("font-size: 24px; border: none;")
+        icon_lbl = QLabel()
+        icon_lbl.setStyleSheet("border: none;")
+        set_icon(icon_lbl, icon, size=24)
         header.addWidget(icon_lbl)
 
         text = QVBoxLayout()

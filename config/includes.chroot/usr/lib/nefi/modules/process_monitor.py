@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QColor, QAction
+from nefi_theme import icon
 
 
 class ProcessMonitorWidget(QWidget):
@@ -271,8 +272,8 @@ class ProcessMonitorWidget(QWidget):
         title_action.setEnabled(False)
         menu.addSeparator()
 
-        kill_action = menu.addAction("🔴  Kill process (SIGKILL)")
-        term_action = menu.addAction("🟡  Terminate process (SIGTERM)")
+        kill_action = menu.addAction(icon("x", "#ff5a5f", 16), "Kill process (SIGKILL)")
+        term_action = menu.addAction(icon("power", "#ffb547", 16), "Terminate process (SIGTERM)")
         menu.addSeparator()
         info_action = menu.addAction("ℹ  Process details")
 

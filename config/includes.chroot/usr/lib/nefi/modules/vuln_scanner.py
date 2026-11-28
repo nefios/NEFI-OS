@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 from PyQt6.QtGui import QFont, QPainter, QColor, QPen
 from PyQt6.QtCore import QRectF
+from nefi_theme import set_icon
 
 
 class ScoreRing(QWidget):
@@ -97,9 +98,10 @@ class FindingCard(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(12, 8, 12, 8)
 
-        icon = QLabel("⚠" if severity == "warning" else "💡")
+        icon = QLabel()
         icon.setFixedWidth(20)
-        icon.setStyleSheet("font-size: 14px; border: none;")
+        icon.setStyleSheet("border: none;")
+        set_icon(icon, "alert" if severity == "warning" else "bulb", color, 14)
         layout.addWidget(icon)
 
         text_lbl = QLabel(text)
@@ -315,7 +317,7 @@ class VulnScannerWidget(QWidget):
 
             # Header suggestions
             if suggestions:
-                hdr2 = QLabel(f"💡  SUGGESTIONS ({len(suggestions)})")
+                hdr2 = QLabel(f"SUGGESTIONS ({len(suggestions)})")
                 hdr2.setStyleSheet("color: #ffaa00; font-size: 11px; font-weight: bold; margin-top: 8px;")
                 self.findings_layout.insertWidget(self.findings_layout.count() - 1, hdr2)
                 for s in suggestions[:20]:
