@@ -40,6 +40,55 @@ class ProcessTree(unittest.TestCase):
         self.assertEqual(ev3["PreviousImage"], "")
 
 
+class PkexecWithPrivilegeKey(unittest.TestCase):
+    """Caso reale della ISO 0.4 (28/11): pkexec prende la chiave "privilege" (50-nefi.rules, caricata prima
+    di nefi_exec), poi diventa bash nello stesso PID. Non deve nascere l'avviso "Root shell"."""
+    LINES = [
+        'type=SYSCALL msg=audit(1795870029.329:21812): arch=c000003e syscall=59 success=yes exit=0 a0=1 a1=2 items=3 '
+        'ppid=2377 pid=6552 auid=1000 uid=1000 gid=1000 euid=0 suid=0 fsuid=0 egid=1000 sgid=1000 fsgid=1000 '
+        'tty=(none) ses=4 comm="pkexec" exe="/usr/bin/pkexec" subj=unconfined key="privilege"',
+        'type=EXECVE msg=audit(1795870029.329:21812): argc=4 a0="pkexec" a1="bash" a2="/opt/nefi/snapshots/manage.sh" a3="list"',
+        'type=CWD msg=audit(1795870029.329:21812): cwd="/home/nefios"',
+        'type=PATH msg=audit(1795870029.329:21812): item=0 name="/usr/bin/pkexec" inode=1 nametype=NORMAL',
+        'type=EOE msg=audit(1795870029.329:21812):',
+        'type=SYSCALL msg=audit(1795870039.100:21890): arch=c000003e syscall=59 success=yes exit=0 a0=1 a1=2 items=2 '
+        'ppid=2377 pid=6552 auid=1000 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 '
+        'tty=(none) ses=4 comm="bash" exe="/usr/bin/bash" subj=unconfined key="nefi_exec"',
+        'type=EXECVE msg=audit(1795870039.100:21890): argc=3 a0="/usr/bin/bash" a1="/opt/nefi/snapshots/manage.sh" a2="list"',
+        'type=CWD msg=audit(1795870039.100:21890): cwd="/root"',
+        'type=EOE msg=audit(1795870039.100:21890):',
+    ]
+
+    def test_no_root_shell_alert(self):
+        asm, raw = detectd.AuditAssembler(), []
+        for l in self.LINES:
+            raw += asm.feed(l)
+        raw += asm.flush(older_than=0)
+        evs = [detectd.audit_to_event(r) for r in raw]
+        self.assertEqual([e["category"] for e in evs], ["process", "process"])
+        self.assertEqual(evs[0]["AuditKey"], "privilege")                                  # la chiave vera resta
+        d = detectd.Detectd.__new__(detectd.Detectd)
+        d.procs = __import__("collections").OrderedDict()
+        d.proc_log = __import__("io").StringIO()
+        d.procs["2377"] = {"ts": 0, "pid": "2377", "ppid": "1968", "Image": "/usr/bin/python3.13",
+                           "CommandLine": "python3 /usr/bin/nefi-security-center", "User": "nefios", "ParentImage": ""}
+        for e in evs:
+            d.remember_process(e)
+        self.assertEqual(evs[1]["PreviousImage"], "/usr/bin/pkexec")
+        rules, _ = engine.load_rules(RULES, "/nonexistent", "/nonexistent")
+        hits = [r.id for r in rules for e in evs if r.applies(e) and r.match(e)]
+        self.assertEqual(hits, [])
+
+    def test_sudoers_write_still_a_file_event(self):
+        line = ('type=SYSCALL msg=audit(1795870100.000:30000): arch=c000003e syscall=257 success=yes exit=3 ppid=1 '
+                'pid=900 auid=1000 uid=0 gid=0 euid=0 tty=pts0 comm="vim" exe="/usr/bin/vim.basic" key="privilege"')
+        asm = detectd.AuditAssembler()
+        asm.feed(line)
+        asm.feed('type=PATH msg=audit(1795870100.000:30000): item=0 name="/etc/sudoers" inode=3 nametype=NORMAL')
+        e = detectd.audit_to_event(asm.flush(older_than=0)[0])
+        self.assertEqual((e["category"], e["TargetFilename"]), ("file", "/etc/sudoers"))
+
+
 class BuiltinRules(unittest.TestCase):
     def setUp(self):
         self.rules, self.errors = engine.load_rules(RULES, "/nonexistent", "/nonexistent")
@@ -86,6 +135,12 @@ class BuiltinRules(unittest.TestCase):
         self.assertFalse(r.match(dict(gui, PreviousImage="/usr/bin/pkexec")))
         self.assertTrue(r.match(dict(gui, PreviousImage="")))
         self.assertTrue(r.match(dict(gui, PreviousImage="/home/anna/exploit")))
+
+    def test_pam_tmpdir_helper_is_known_suid(self):
+        r = self.by_id["nefi-proc-suid-unusual"]
+        base = {"category": "process", "source": "auditd", "EffectiveUser": "root", "User": "sddm"}
+        self.assertFalse(r.match(dict(base, Image="/usr/libexec/pam-tmpdir/pam-tmpdir-helper")))
+        self.assertTrue(r.match(dict(base, Image="/tmp/pam-tmpdir-helper")))              # solo il percorso vero
 
     def test_cred_read_filters_auth_programs(self):
         r = self.by_id["nefi-audit-cred-read"]

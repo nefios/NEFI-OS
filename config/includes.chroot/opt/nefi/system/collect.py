@@ -439,6 +439,7 @@ KNOWN_SUID = {
     "/usr/lib/dbus-1.0/dbus-daemon-launch-helper", "/usr/lib/polkit-1/polkit-agent-helper-1",
     "/usr/bin/chfn", "/usr/bin/chsh", "/usr/bin/gpasswd", "/usr/bin/newgrp", "/usr/lib/openssh/ssh-keysign",
     "/usr/sbin/pppd", "/usr/lib/xorg/Xorg.wrap", "/usr/bin/ntfs-3g", "/usr/lib/chromium/chrome-sandbox",
+    "/usr/libexec/pam-tmpdir/pam-tmpdir-helper",
 }
 
 
@@ -691,7 +692,11 @@ def _():
        "Extra UID 0 accounts and empty passwords are classic backdoors.")
 def _():
     uid0 = [l.split(":")[0] for l in (read("/etc/passwd", "") or "").splitlines() if l.split(":")[2:3] == ["0"]]
-    empty = [l.split(":")[0] for l in (read("/etc/shadow", "") or "").splitlines() if l.split(":")[1:2] == [""]]
+    # Lo stato delle password lo legge passwd (NP = nessuna password): NEFI non apre /etc/shadow,
+    # cosi' la regola "Password hashes read" resta severa anche verso i programmi Python.
+    rc_all, out_all, _ = run(["passwd", "-S", "-a"], 20)
+    states = [l.split() for l in out_all.splitlines() if len(l.split()) > 1]
+    empty = [f[0] for f in states if f[1] == "NP"]
     rc, out, _ = run(["passwd", "-S", "root"], 10)
     root_state = out.split()[1] if len(out.split()) > 1 else "?"
     problems = []
@@ -701,9 +706,11 @@ def _():
         problems.append(f"empty passwords: {', '.join(empty)}")
     if root_state not in ("L", "NP"):
         problems.append("root has a usable password (prefer sudo only)")
+    if rc_all != 0 or not states:
+        problems.append("could not read the password state of the accounts (passwd -S -a)")
     status = "fail" if (uid0 != ["root"] or empty) else ("warn" if problems else "pass")
     return R(status, "; ".join(problems) or "only root has UID 0, no empty passwords, root locked",
-             "/etc/passwd /etc/shadow passwd -S")
+             "/etc/passwd, passwd -S -a, passwd -S root")
 
 
 @check("cfg.password_policy", "config", "Password policy (quality, expiry, umask)", 3,

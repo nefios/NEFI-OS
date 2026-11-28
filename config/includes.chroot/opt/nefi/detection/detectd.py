@@ -209,10 +209,13 @@ def audit_to_event(ev):
         "Success": sysc.get("success", ""),
     }
     cwd = next((f.get("cwd", "") for t, f in ev["records"] if t == "CWD"), "")
-    if "nefi_exec" in key:
+    execve = next((f for t, f in ev["records"] if t == "EXECVE"), None)
+    # Ogni esecuzione e' un evento "processo", anche se l'ha presa una regola caricata prima di nefi_exec
+    # (es. "-w /usr/bin/pkexec -p x -k privilege"): il kernel usa solo la prima regola che corrisponde.
+    if "nefi_exec" in key or execve is not None:
         if sysc.get("success") == "no":
             return None
-        execve = next((f for t, f in ev["records"] if t == "EXECVE"), {})
+        execve = execve or {}
         args = [execve[k] for k in sorted((k for k in execve if re.fullmatch(r"a\d+", k)), key=lambda k: int(k[1:]))]
         base.update({"category": "process", "CommandLine": " ".join(args)[:4000] or sysc.get("comm", ""),
                      "CurrentDirectory": cwd})

@@ -46,7 +46,8 @@ detection:
                        /chrome-sandbox, /firejail, /exim4, /ping, /kcheckpass, /start_kdeinit, /sudoedit,
                        /mount.nfs, /mount.cifs, /snap-confine, /utempter, /write, /wall, /ssh-agent,
                        /VBoxHeadless, /VBoxNetAdpCtl, /vmware-user-suid-wrapper, /doas, /newuidmap, /newgidmap]
-  condition: selection and not filter_root and not filter_known
+  filter_known_path: {Image: /usr/libexec/pam-tmpdir/pam-tmpdir-helper}
+  condition: selection and not filter_root and not filter_known and not filter_known_path
 falsepositives: [Third-party software that installs its own SUID helper]
 nefi_title: 'Unusual SUID root program run by {User}: {Image}'
 nefi_dedup: [Image, User]
