@@ -38,7 +38,7 @@ case "$ACTION" in
 
     list)
         # Lista snapshot
-        snapper -c root list 2>&1
+        LC_ALL=C snapper -c root list 2>&1
         ;;
 
     delete)
