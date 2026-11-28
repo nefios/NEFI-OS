@@ -604,7 +604,7 @@ class TimelinePage(DfirPage):
     def _plaso(self):
         index = read_json(os.path.join(store_dir(), "index.json"), [])
         ids = [x["evidence_id"] for x in index if x.get("kind") in ("live-collection", "disk-image")]
-        if not shutil.which("log2timeline.py") and not shutil.which("log2timeline"):
+        if not any(shutil.which(n) for n in ("plaso-log2timeline", "log2timeline.py", "log2timeline")):
             QMessageBox.information(self, "Plaso", "Plaso is not installed (sudo apt install plaso).")
             return
         if not ids:
