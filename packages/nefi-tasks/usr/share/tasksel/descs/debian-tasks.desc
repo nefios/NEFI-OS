@@ -87,7 +87,6 @@ Packages: list
 
 Task: nefi-desktop-kde
 Parent: nefi-desktop
-Test-new-install: mark show
 Relevance: 11
 Section: user
 Description: KDE Plasma (NEFI OS desktop)
@@ -146,7 +145,6 @@ Packages: list
 
 Task: nefi-core
 Parent: nefi-tools
-Test-new-install: mark show
 Relevance: 21
 Section: user
 Description: core -- NEFI Security Center and system hardening
@@ -190,7 +188,6 @@ Packages: list
 
 Task: nefi-default
 Parent: nefi-tools
-Test-new-install: mark show
 Relevance: 22
 Section: user
 Description: default -- Blue Team tools: IDS and antivirus and audit scanners
@@ -255,7 +252,6 @@ Packages: list
  openssh-server
 
 Task: nefi-standard
-Test-new-install: mark show
 Relevance: 40
 Section: user
 Description: standard system utilities

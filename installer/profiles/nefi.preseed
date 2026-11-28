@@ -6,9 +6,9 @@ d-i apt-setup/contrib boolean true
 d-i apt-setup/non-free boolean true
 d-i apt-setup/non-free-firmware boolean true
 popularity-contest popularity-contest/participate boolean false
-# Scelta del software: le voci gia' spuntate sono decise da "Test-new-install" nei task
-# (packages/nefi-tasks-gen.sh). Un valore qui per tasksel/first verrebbe ignorato
-# se la schermata resta visibile, e la nasconderebbe se fosse marcato come visto.
+# Scelta del software: predefiniti NEFI, schermata visibile (seen false)
+tasksel tasksel/first multiselect nefi-desktop-kde, nefi-core, nefi-default, nefi-ai, nefi-standard
+tasksel tasksel/first seen false
 # Aggiornamenti di sicurezza automatici, senza chiederlo all'utente
 d-i pkgsel/update-policy select unattended-upgrades
 # GRUB anche nel percorso di riserva EFI: avvio sicuro anche con firmware difettosi
