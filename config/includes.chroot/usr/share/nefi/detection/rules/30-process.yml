@@ -53,7 +53,7 @@ nefi_dedup: [Image, User]
 ---
 title: Root shell started by an unprivileged process
 id: nefi-proc-root-shell
-description: A shell runs as root, but its parent process belongs to a normal user and is not sudo, su, pkexec or a login program. This is what a successful local privilege escalation usually looks like.
+description: A shell runs as root, but its parent process belongs to a normal user and is not sudo, su, pkexec or a login program. This is what a successful local privilege escalation usually looks like. A shell that pkexec became after authentication (same process) is not reported.
 level: critical
 tags: [attack.privilege_escalation, attack.t1068, attack.t1548]
 logsource: {product: linux, category: process_creation}
@@ -66,5 +66,6 @@ detection:
   filter_parent_tool:
     'ParentImage|endswith': [/sudo, /su, /pkexec, /login, /sshd, /sshd-session, /sddm-helper, /doas, /newgrp,
                              /systemd, /polkit-agent-helper-1, /runuser, /cron, /atd, /machinectl, /firejail]
-  condition: selection and not filter_parent_root and not filter_parent_tool
+  filter_pkexec_exec: {'PreviousImage|endswith': /pkexec}
+  condition: selection and not filter_parent_root and not filter_parent_tool and not filter_pkexec_exec
 nefi_title: 'Root shell started by {ParentUser} via {ParentImage}'

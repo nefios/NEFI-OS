@@ -24,6 +24,22 @@ def rule(text):
     return engine.Rule(yaml.safe_load(text))
 
 
+class ProcessTree(unittest.TestCase):
+    def test_previous_image_on_exec(self):
+        d = detectd.Detectd.__new__(detectd.Detectd)
+        d.procs = __import__("collections").OrderedDict()
+        d.proc_log = __import__("io").StringIO()                                           # niente file su disco
+        ev = {"ts": 1, "pid": 500, "ppid": 400, "Image": "/usr/bin/pkexec", "CommandLine": "pkexec bash x", "User": "anna"}
+        d.remember_process(ev)
+        self.assertEqual(ev["PreviousImage"], "")
+        ev2 = {"ts": 2, "pid": 500, "ppid": 400, "Image": "/usr/bin/bash", "CommandLine": "bash x", "User": "root"}
+        d.remember_process(ev2)
+        self.assertEqual(ev2["PreviousImage"], "/usr/bin/pkexec")
+        ev3 = {"ts": 3, "pid": 500, "ppid": 999, "Image": "/usr/bin/bash", "CommandLine": "bash", "User": "root"}
+        d.remember_process(ev3)                                                            # PID riusato
+        self.assertEqual(ev3["PreviousImage"], "")
+
+
 class BuiltinRules(unittest.TestCase):
     def setUp(self):
         self.rules, self.errors = engine.load_rules(RULES, "/nonexistent", "/nonexistent")
@@ -65,10 +81,17 @@ class BuiltinRules(unittest.TestCase):
         self.assertFalse(r.match(dict(base, ParentUser="anna", ParentImage="/usr/bin/sudo")))
         self.assertFalse(r.match(dict(base, ParentUser="root", ParentImage="/usr/bin/python3")))
         self.assertTrue(r.match(dict(base, ParentUser="anna", ParentImage="/home/anna/tool")))
+        # pkexec diventa bash nello stesso processo: il genitore resta il programma dell'utente
+        gui = dict(base, ParentUser="anna", ParentImage="/usr/bin/python3.13")
+        self.assertFalse(r.match(dict(gui, PreviousImage="/usr/bin/pkexec")))
+        self.assertTrue(r.match(dict(gui, PreviousImage="")))
+        self.assertTrue(r.match(dict(gui, PreviousImage="/home/anna/exploit")))
 
     def test_cred_read_filters_auth_programs(self):
         r = self.by_id["nefi-audit-cred-read"]
         e = {"source": "auditd", "category": "file", "AuditKey": "nefi_cred", "Success": "yes", "Image": "/usr/sbin/unix_chkpwd"}
+        self.assertFalse(r.match(e))
+        e["Image"] = "/usr/lib/systemd/systemd-executor"                                # login: PAM via systemd
         self.assertFalse(r.match(e))
         e["Image"] = "/usr/bin/cat"
         self.assertTrue(r.applies(e) and r.match(e))

@@ -340,6 +340,10 @@ class Detectd:
     # ── albero dei processi ──
     def remember_process(self, ev):
         pid = str(ev.get("pid", ""))
+        # Stesso PID e stesso genitore: e' un exec() nello stesso processo (es. pkexec che diventa bash
+        # dopo la password). PreviousImage dice da quale programma e' nato il nuovo.
+        prev = self.procs.get(pid)
+        ev["PreviousImage"] = prev["Image"] if prev and prev.get("ppid") == str(ev.get("ppid", "")) else ""
         parent = self.procs.get(str(ev.get("ppid", "")))
         if parent:
             ev["ParentImage"], ev["ParentCommandLine"] = parent["Image"], parent["CommandLine"]
