@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import (
     QScrollArea, QButtonGroup, QRadioButton
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from nefi_theme import set_icon
 
 
 class PrivacyWorker(QThread):
@@ -68,7 +69,8 @@ class PrivacyToggleCard(QFrame):
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(16)
 
-        self.icon_lbl = QLabel(icon)
+        self.icon_lbl = QLabel()
+        set_icon(self.icon_lbl, icon, size=22)
         self.icon_lbl.setFixedSize(40, 40)
         self.icon_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.icon_lbl.setStyleSheet("""
@@ -214,15 +216,15 @@ class PrivacyControlWidget(QWidget):
 
         self.bt_card = PrivacyToggleCard(
             "Bluetooth", "Wireless device communication",
-            "📡", "enable_bluetooth", "disable_bluetooth", self._run_action
+            "bluetooth", "enable_bluetooth", "disable_bluetooth", self._run_action
         )
         self.webcam_card = PrivacyToggleCard(
             "Webcam", "Camera device (uvcvideo module)",
-            "📷", "enable_webcam", "disable_webcam", self._run_action
+            "camera", "enable_webcam", "disable_webcam", self._run_action
         )
         self.mic_card = PrivacyToggleCard(
             "Microphone", "Audio input device",
-            "🎤", "enable_microphone", "disable_microphone", self._run_action
+            "mic", "enable_microphone", "disable_microphone", self._run_action
         )
 
         layout.addWidget(self.bt_card)
@@ -247,8 +249,9 @@ class PrivacyControlWidget(QWidget):
         dns_layout.setSpacing(12)
 
         dns_header = QHBoxLayout()
-        dns_icon = QLabel("🌐")
-        dns_icon.setStyleSheet("font-size: 20px; border: none;")
+        dns_icon = QLabel()
+        dns_icon.setStyleSheet("border: none;")
+        set_icon(dns_icon, "globe", size=22)
         dns_header.addWidget(dns_icon)
 
         dns_text = QVBoxLayout()

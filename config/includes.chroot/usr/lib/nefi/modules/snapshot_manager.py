@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QMessageBox
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from nefi_theme import icon, set_icon
 
 SNAPPER_CONFIG = "/etc/snapper/configs/root"
 
@@ -89,8 +90,9 @@ class SnapshotManagerWidget(QWidget):
         banner_layout = QHBoxLayout(self.status_banner)
         banner_layout.setContentsMargins(16, 12, 16, 12)
 
-        self.fs_icon = QLabel("💾")
-        self.fs_icon.setStyleSheet("font-size: 24px; border: none;")
+        self.fs_icon = QLabel()
+        self.fs_icon.setStyleSheet("border: none;")
+        set_icon(self.fs_icon, "snapshot", size=24)
         banner_layout.addWidget(self.fs_icon)
 
         banner_text = QVBoxLayout()
@@ -130,7 +132,8 @@ class SnapshotManagerWidget(QWidget):
         btn_row = QHBoxLayout()
         btn_row.setSpacing(8)
 
-        self.create_btn = QPushButton("📸  Create Snapshot")
+        self.create_btn = QPushButton("Create Snapshot")
+        self.create_btn.setIcon(icon("camera", "#1ed98a", 16))
         self.create_btn.setStyleSheet("""
             QPushButton {
                 background-color: #1ed98a22;

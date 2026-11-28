@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
     QScrollArea, QTabWidget
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from nefi_theme import set_icon
 
 # Dati utente privati (non piu' in /tmp)
 import os as _os
@@ -98,10 +99,10 @@ class ThreatIntelWidget(QWidget):
         cards_row.setSpacing(12)
 
         for key, label, icon in [
-            ("ip_feed",     "IP Blocklist",    "🌐"),
-            ("url_feed",    "Malicious URLs",  "🔗"),
-            ("yara_rules",  "YARA Rules",      "🧬"),
-            ("last_update", "Last Update",     "🕐"),
+            ("ip_feed",     "IP Blocklist",    "globe"),
+            ("url_feed",    "Malicious URLs",  "link"),
+            ("yara_rules",  "YARA Rules",      "bug"),
+            ("last_update", "Last Update",     "clock"),
         ]:
             card = QWidget()
             card.setStyleSheet("""
@@ -114,8 +115,9 @@ class ThreatIntelWidget(QWidget):
             cl = QVBoxLayout(card)
             cl.setContentsMargins(14, 10, 14, 10)
             cl.setSpacing(4)
-            icon_lbl = QLabel(icon)
-            icon_lbl.setStyleSheet("font-size: 18px; border: none;")
+            icon_lbl = QLabel()
+            icon_lbl.setStyleSheet("border: none;")
+            set_icon(icon_lbl, icon, size=18)
             name_lbl = QLabel(label)
             name_lbl.setStyleSheet("color: #8fb0b2; font-size: 10px; letter-spacing: 1px; border: none;")
             val_lbl = QLabel("--")

@@ -132,7 +132,18 @@ _ICONS = {
     "play":      '<path d="M7 5l12 7-12 7z"/>',
     "x":         '<path d="M6 6l12 12M18 6L6 18"/>',
     "dot":       '<circle cx="12" cy="12" r="4" fill="COLOR"/>',
+    "mic":       '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/>',
+    "link":      '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    "clock":     '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>',
+    "bulb":      '<path d="M9 18h6M10 21h4"/><path d="M8.5 15a6 6 0 1 1 7 0c-.7.6-1 1.2-1 2H9.5c0-.8-.3-1.4-1-2z"/>',
+    "bluetooth": '<path d="M7 7l10 10-5 4V3l5 4L7 17"/>',
 }
+
+
+def set_icon(label, name, color=None, size=22):
+    """Mette un'icona SVG in una QLabel (al posto delle emoji, che dipendono dai font installati)."""
+    label.setText("")
+    label.setPixmap(icon_pixmap(name, color or C["accent"], size))
 
 
 def compact():
