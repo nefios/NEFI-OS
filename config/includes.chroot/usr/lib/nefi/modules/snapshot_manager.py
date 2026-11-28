@@ -9,6 +9,29 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal
 
+SNAPPER_CONFIG = "/etc/snapper/configs/root"
+
+
+def parse_snapper_list(output):
+    """Righe di 'snapper list' -> [(numero, tipo, data, descrizione)].
+
+    Le colonne si trovano dall'intestazione, perche' la loro posizione cambia
+    tra le versioni di snapper. Lo snapshot 0 ("current") non e' uno snapshot vero."""
+    cols, rows = None, []
+    for line in output.splitlines():
+        parts = [p.strip() for p in line.split("|")]
+        if cols is None:
+            if len(parts) > 3 and parts[0] == "#":
+                cols = {name: i for i, name in enumerate(parts)}
+            continue
+        if not parts or not parts[0].isdigit() or parts[0] == "0":
+            continue
+        def col(name):
+            i = cols.get(name)
+            return parts[i] if i is not None and i < len(parts) else ""
+        rows.append((parts[0], col("Type"), col("Date"), col("Description")))
+    return rows
+
 
 class SnapWorker(QThread):
     output_line = pyqtSignal(str)
@@ -253,7 +276,12 @@ class SnapshotManagerWidget(QWidget):
                         border-radius: 8px;
                     }
                 """)
-                self.setup_btn.setEnabled(True)
+                if os.path.exists(SNAPPER_CONFIG):
+                    self.setup_btn.hide()
+                    self.fs_sub.setText("Snapper is configured: a snapshot at every boot and on a timeline. "
+                                        "The list asks for the administrator password; press Refresh to reload it.")
+                else:
+                    self.setup_btn.setEnabled(True)
                 self.create_btn.setEnabled(True)
                 self._load_snapshots()
             else:
@@ -308,6 +336,8 @@ class SnapshotManagerWidget(QWidget):
     def _load_snapshots(self):
         if not self.btrfs_supported:
             return
+        if self.worker is not None and self.worker.isRunning():
+            return                      # una richiesta alla volta (e una sola password)
         self.worker = SnapWorker("list")
         self.worker.finished_ok.connect(self._parse_snapshots)
         self.worker.start()
@@ -316,16 +346,9 @@ class SnapshotManagerWidget(QWidget):
         self.snap_table.setRowCount(0)
         if not ok:
             return
-        for line in output.splitlines():
-            parts = line.split("|")
-            if len(parts) >= 5 and parts[0].strip().isdigit():
+        for snap_id, snap_type, snap_date, snap_desc in parse_snapper_list(output):
                 row = self.snap_table.rowCount()
                 self.snap_table.insertRow(row)
-                snap_id = parts[0].strip()
-                snap_type = parts[1].strip()
-                snap_date = parts[2].strip()
-                snap_desc = parts[4].strip() if len(parts) > 4 else ""
-
                 self.snap_table.setItem(row, 0, QTableWidgetItem(snap_id))
                 self.snap_table.setItem(row, 1, QTableWidgetItem(snap_type))
                 self.snap_table.setItem(row, 2, QTableWidgetItem(snap_date))
@@ -414,4 +437,6 @@ class SnapshotManagerWidget(QWidget):
             self.worker.start()
 
     def refresh(self):
-        self._load_snapshots()
+        # Chiamata dalla finestra ogni 5 secondi: l'elenco richiede pkexec (password),
+        # quindi si ricarica solo all'apertura, con Refresh e dopo un'operazione.
+        pass
