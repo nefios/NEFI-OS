@@ -80,6 +80,12 @@ KDE Plasma 6 (default), GNOME or Xfce, NEFI Security Center (PyQt6).
 - Honeypot logs are written to `~/.local/share/nefi/`; Log Viewer shows the right Kernel, Authentication and
   Firewall entries; Process Monitor no longer flags `systemd-timesyncd`; snapshot numbers are validated.
 - ISO built from a clean clone no longer fails at "Select and install software".
+- Detection: no false critical "Root shell" alert when the Security Center runs a task with pkexec; no false
+  alerts at login (`systemd-executor`, `pam-tmpdir-helper`) or from the system assessment, which no longer reads
+  `/etc/shadow`.
+- Snapshots page: no password prompt every 5 seconds; "Setup Snapper" hidden when Snapper is configured.
+- The first user is in the `systemd-journal` group, so the Log Viewer reads the journal without a password.
+- Plaso is found under Debian's command names; the Security Center uses SVG icons instead of colour emoji.
 
 The full list is in [CHANGELOG.md](../CHANGELOG.md).
 
@@ -91,8 +97,17 @@ The full list is in [CHANGELOG.md](../CHANGELOG.md).
 - Xfce runs on X11, without Wayland's isolation between applications.
 - On first boot the AIDE baseline runs for a few minutes at low priority.
 - The Btrfs root and Snapper are set up by the installer: systems installed with 0.3 (ext4) do not get snapshots.
-- The Log Viewer needs the `systemd-journal` group. If it shows "No permission to read the system journal",
-  run `sudo adduser $USER systemd-journal` and log in again.
+- Configuration Audit reports "System disk encrypted (LUKS)" as failed on the Btrfs root although the disk is
+  encrypted. Fix planned for 0.4.1.
+- While Suricata runs, "Promiscuous mode" is reported on its interface, and UDP sockets that Firefox opens for
+  HTTP/3 are reported as new listening ports; together they can raise the critical "Several attack stages on this
+  machine". Mark them with "False positive…". Fix planned for 0.4.1.
+- No task is pre-checked in the Software selection: choose a desktop, core and default yourself.
+- The Snapshots page asks for the administrator password at every Refresh.
+- VirtualBox: use VMSVGA with 128 MB of video memory; with EFI the disk passphrase is asked in text mode.
+- Honeypot times are shown in UTC; the action buttons in the Snapshots list are truncated.
+
+Tested in QEMU/KVM and in VirtualBox, with BIOS and with EFI + Secure Boot + TPM 2.0.
 
 ## Download and verify
 
