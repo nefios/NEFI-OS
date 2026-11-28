@@ -84,6 +84,10 @@ All notable changes to NEFI OS are documented here.
 - All NEFI packages use the maintainer `NEFI OS Developers <osnefi@gmail.com>`.
 - Security Center modules from 0.3 that are no longer loaded (in-window EDR, forensics, Secure Boot monitor,
   security status) moved to `legacy/modules/`.
+- Security Center: SVG icons drawn in the theme colours instead of colour emoji.
+- `installer/build.sh` passes the NEFI packages to simple-cdd (`--local-packages`); the build needs
+  simple-cdd 0.6.10 or later and no Debian DVD.
+- Guymager and Plaso are included in the ISO (large task).
 
 ### Fixed
 - ISO built from a clean clone (without a live-build chroot) failed at "Select and install software":
@@ -121,10 +125,22 @@ All notable changes to NEFI OS are documented here.
   are added to the `systemd-journal` group so the journal can be read.
 - Process Monitor: no more false positives such as `systemd-timesyncd`; suspicious names are matched exactly.
 - Snapshots: snapshot numbers are validated before delete and rollback.
+- Detection: running a Security Center task with pkexec (for example the Snapshots list) raised a critical
+  "Root shell" alert. The kernel gave the pkexec execution the audit key `privilege`, so the engine did not
+  record it as a process; every execution is now a process event, and sudo and pkexec appear in the process tree.
+- Detection: no more alerts for `systemd-executor` reading `/etc/shadow` at login, for the `pam-tmpdir-helper`
+  SUID helper at login, and for the system assessment, which no longer reads `/etc/shadow`
+  (it uses `passwd -S -a`).
+- Snapshots page: no password prompt every 5 seconds (the list loads when the page opens and on Refresh),
+  columns read by name, "Setup Snapper" hidden when Snapper is already configured.
+- The first user created by the installer is in the `systemd-journal` group.
+- DFIR Timeline: Plaso is found under Debian's command names (`plaso-log2timeline`, `plaso-psort`).
 
 ### Verified
 - Installation tested in QEMU/KVM: KDE Plasma (default), GNOME, Xfce, and UEFI with Secure Boot
   and TPM 2.0 (Secure Boot enabled, kernel lockdown in integrity mode).
+- Installation tested in VirtualBox with EFI, Secure Boot and TPM 2.0 (Secure Boot enabled, kernel lockdown
+  in integrity mode, Btrfs root, detection engine without errors).
 - Memory at idle with the same task selection: KDE 2.5 GB, GNOME 2.2 GB, Xfce 2.0 GB in total;
   the desktop itself uses about 1.1, 0.8 and 0.3 GB. ClamAV (`clamd`) uses about 1 GB on all of them.
 
@@ -134,6 +150,17 @@ All notable changes to NEFI OS are documented here.
   (for example from cable to Wi-Fi) `/etc/suricata/suricata.yaml` must be updated.
 - Xfce runs on X11, without Wayland's isolation between applications.
 - On first boot the AIDE baseline runs for a few minutes at low priority.
+- Configuration Audit reports "System disk encrypted (LUKS)" as failed on the Btrfs root although the disk is
+  encrypted: the check does not handle the Btrfs subvolume in the device name. Fix planned for 0.4.1.
+- While Suricata runs, Detections reports "Promiscuous mode" on its interface; UDP sockets that Firefox opens for
+  HTTP/3 are reported as "New listening port" and as a Configuration Audit warning. Together they can raise the
+  critical correlation "Several attack stages on this machine". Mark them with "False positive…".
+  Fix planned for 0.4.1.
+- No task is pre-checked in the Software selection: choose a desktop, core and default yourself.
+- The Snapshots page asks for the administrator password at every Refresh.
+- VirtualBox: use the VMSVGA graphics controller with 128 MB of video memory, otherwise the boot can stop at the
+  logo; with EFI the disk passphrase is asked in text mode.
+- Honeypot times are shown in UTC; the action buttons in the Snapshots list are truncated.
 
 ## [0.3] — 2026-11
 
