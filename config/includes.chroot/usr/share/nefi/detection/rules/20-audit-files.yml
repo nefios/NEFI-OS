@@ -9,7 +9,7 @@ detection:
   selection: {'AuditKey|contains': nefi_cred, Success: 'yes'}
   filter_auth:
     'Image|endswith': [/sshd, /sshd-session, /sshd-auth, /sudo, /su, /login, /passwd, /chage, /unix_chkpwd, /sddm-helper,
-                       /polkit-agent-helper-1, /cron, /systemd, /useradd, /usermod, /userdel, /groupadd, /groupdel,
+                       /polkit-agent-helper-1, /cron, /systemd, /systemd-executor, /useradd, /usermod, /userdel, /groupadd, /groupdel,
                        /groupmod, /gpasswd, /chpasswd, /newusers, /pwck, /grpck, /vipw, /chfn, /chsh, /expiry,
                        /accounts-daemon, /kcheckpass, /kscreenlocker_greet, /atd, /pkexec, /newgrp, /runuser,
                        /systemd-sysusers, /adduser, /deluser, /lightdm, /gdm-session-worker]
