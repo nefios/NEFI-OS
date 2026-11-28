@@ -29,7 +29,8 @@ done
 
 say "2/4 simple-cdd (log completo: $LOG)..."
 touch /tmp/nefi-build-start
-build-simple-cdd --conf nefi.conf --dist "$DIST" > "$LOG" 2>&1
+build-simple-cdd --conf nefi.conf --dist "$DIST" \
+  --local-packages "$(cd ../packages/out && pwd)" > "$LOG" 2>&1
 if [ ! "$BASE_ISO" -nt /tmp/nefi-build-start ]; then
   say "ERRORE: la ISO non e' stata creata. Ultime righe del log:"
   tail -25 "$LOG"

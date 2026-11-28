@@ -43,7 +43,8 @@ All notable changes to NEFI OS are documented here.
 - DFIR > Timeline: structured timeline (file MACB times, logins, services, packages, shell and browser history,
   executed programs, NEFI alerts, disk images) in Timesketch-compatible JSONL and CSV; optional Plaso.
 - DFIR > Disk Forensics: write-blocked acquisition (block verified before reading) to E01 or raw with hash
-  verification, software write blocker for new disks, Sleuth Kit / Foremost / bulk_extractor on images.
+  verification, software write blocker for new disks, Sleuth Kit / Foremost on images (bulk_extractor
+  only if installed: it is not in Debian 13).
 - System > Security Score: score over time with the list of checks that changed state, points gained by fixing
   each check ("+N pts", issues sorted by gain), advice on what to fix first, full report export (HTML).
 - Prevention > Vulnerability Management: risk-based priority - CISA Known Exploited Vulnerabilities catalogue

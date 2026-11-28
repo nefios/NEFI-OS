@@ -49,7 +49,7 @@ CORE="nefi-security-center python3-pyqt6 python3-pyqt6.qtsvg python3-psutil pyth
   netcat-openbsd
   libpam-tmpdir libpam-pwquality apt-listchanges needrestart fail2ban python3-systemd debsums apt-show-versions acct sysstat libnotify-bin debsecan"
 DEFAULT="suricata yara clamav clamav-daemon chkrootkit rkhunter lynis nmap tcpdump net-tools"
-LARGE_EXTRA="dc3dd foremost binwalk sleuthkit autopsy testdisk gddrescue ewf-tools wireshark tshark bulk-extractor guymager plaso"
+LARGE_EXTRA="dc3dd foremost binwalk sleuthkit autopsy testdisk gddrescue ewf-tools wireshark tshark guymager plaso"
 AI="nefi-ollama"
 DESKTOP_GNOME="gnome-core gdm3 firefox-esr network-manager-gnome fonts-noto-color-emoji"
 DESKTOP_XFCE="xfce4 xfce4-goodies lightdm lightdm-gtk-greeter firefox-esr network-manager-gnome mate-polkit fonts-noto-color-emoji"

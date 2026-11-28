@@ -4,7 +4,7 @@ Builds the NEFI OS installer ISO: the official Debian 13 installer remastered wi
 
 | File | Purpose |
 |---|---|
-| `build.sh` | **The build command.** Builds the NEFI packages, remasters the Debian DVD and applies the NEFI graphics |
+| `build.sh` | **The build command.** Builds the NEFI packages, builds the Debian installer image with simple-cdd and applies the NEFI graphics |
 | `nefi.conf` | `simple-cdd` configuration (profile, Debian mirrors) |
 | `profiles/nefi.preseed` | Installer answers preset by NEFI (hostname, partitioning, root account, package sources, GRUB…) |
 | `profiles/nefi.packages` | Packages installed by default |
@@ -20,7 +20,9 @@ Builds the NEFI OS installer ISO: the official Debian 13 installer remastered wi
 NEFI_VERSION=0.4 ./build.sh   # explicit version
 ```
 
-Before the first build, put the Debian DVD image `debian-13-amd64-DVD-1.iso` in `installer/images/`. The ISO is written to `installer/images/nefi-os-<version>-amd64.iso`.
+No Debian DVD is needed: simple-cdd downloads the packages from the Debian mirror and writes an intermediate image, `installer/images/debian-13-amd64-DVD-1.iso`, which the build then rebrands. The final ISO is written to `installer/images/nefi-os-<version>-amd64.iso`.
+
+The build needs **simple-cdd 0.6.10 or later**. Debian 13 ships 0.6.9, which fails: install the two `_all.deb` packages (`python3-simple-cdd` and `simple-cdd`) of version 0.6.10 from the Debian archive.
 
 `images/` and `tmp/` are created by the build and are not stored in Git.
 
