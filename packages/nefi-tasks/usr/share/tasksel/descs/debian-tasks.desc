@@ -72,6 +72,8 @@ Packages: list
  ewf-tools
  wireshark
  tshark
+ guymager
+ plaso
  nefi-ollama
  openssh-server
 
@@ -229,6 +231,8 @@ Packages: list
  ewf-tools
  wireshark
  tshark
+ guymager
+ plaso
 
 Task: nefi-ai
 Parent: nefi-tools

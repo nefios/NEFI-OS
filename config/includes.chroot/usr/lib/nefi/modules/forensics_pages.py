@@ -641,7 +641,7 @@ class DiskPage(DfirPage):
     TITLE = "Disk Forensics"
     SUBTITLE = ("Acquire a disk without changing it: the device is write-blocked and the block is verified before a "
                 "single byte is read, the image (E01 or raw) is hashed and verified, and the result is signed "
-                "evidence. Then analyse the image - never the original - with The Sleuth Kit, Foremost and bulk_extractor.")
+                "evidence. Then analyse the image - never the original - with The Sleuth Kit and Foremost.")
     STATS = [("disks", "disks connected"), ("blocker", "write blocker for new disks"), ("images", "disk images")]
     KINDS = ("disk-image",)
 
@@ -680,7 +680,8 @@ class DiskPage(DfirPage):
         irow = QHBoxLayout()
         irow.addWidget(SectionLabel("Disk images"))
         irow.addStretch()
-        self.tool = make_combo(ANALYSIS, 260)
+        # bulk_extractor non e' in Debian 13: la voce compare solo se e' installato
+        self.tool = make_combo([(l, t) for l, t in ANALYSIS if t != "bulk_extractor" or shutil.which(t)], 260)
         irow.addWidget(self.tool)
         self.btn(irow, "Run on image", "play", "ok", self._analyze)
         self.btn(irow, "Verify", "check_sq", "muted", lambda: (lambda x: x and self.dfir(["verify", x["evidence_id"]], "Verifying"))(self.selected()))
@@ -727,9 +728,9 @@ class DiskPage(DfirPage):
         self.stats["disks"].set(len(rows))
         self.stats["blocker"].set("ON" if on else "off", C["accent"] if on else C["warn"])
         self.stats["images"].set(len(self.items) if index is not None else "–")
-        missing = [t for t in ("ewfacquire", "fls", "foremost", "bulk_extractor") if not shutil.which(t)]
-        self.note.setText(("Not installed: " + ", ".join(missing) + " (packages ewf-tools, sleuthkit, foremost, "
-                           "bulk-extractor; most are in the 'large' software selection).") if missing else "")
+        missing = [t for t in ("ewfacquire", "fls", "foremost") if not shutil.which(t)]
+        self.note.setText(("Not installed: " + ", ".join(missing) + " (packages ewf-tools, sleuthkit, foremost: "
+                           "in the 'large' software selection).") if missing else "")
         fill(self.table, [[x.get("evidence_id", ""), x.get("case", ""), x.get("operator", ""),
                            (x.get("collected_utc") or "").replace("T", " ").replace("Z", ""), human(x.get("size", 0)),
                            "yes" if x.get("signed") else "NO", x.get("description", ""),
