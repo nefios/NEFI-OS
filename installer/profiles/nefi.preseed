@@ -15,6 +15,10 @@ d-i pkgsel/update-policy select unattended-upgrades
 d-i grub-installer/force-efi-extra-removable boolean true
 # Niente password di root: il primo utente e' amministratore con sudo
 d-i passwd/root-login boolean false
+# Gruppi del primo utente (quelli predefiniti di Debian + systemd-journal per il Log Viewer).
+# L'utente viene creato a fine installazione, dopo i pacchetti NEFI: lo script di setup
+# non puo' aggiungerlo, quindi il gruppo si assegna qui. I gruppi che non esistono vengono ignorati.
+d-i passwd/user-default-groups string audio bluetooth cdrom debian-tor dip floppy lpadmin netdev plugdev scanner video systemd-journal
 # Server di posta (exim4) solo locale: nessuna porta 25 aperta sulla rete
 exim4-config exim4/dc_eximconfig_configtype select local delivery only; not on a network
 exim4-config exim4/dc_local_interfaces string 127.0.0.1 ; ::1

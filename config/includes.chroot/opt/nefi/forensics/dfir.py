@@ -395,8 +395,11 @@ def timeline(days, sources, case, operator, image=None):
 
 def plaso(eid):
     """Super-timeline con Plaso (log2timeline + psort) su una raccolta live o su un'immagine disco."""
-    l2t = shutil.which("log2timeline.py", path=cu.ENV["PATH"]) or shutil.which("log2timeline", path=cu.ENV["PATH"])
-    psort = shutil.which("psort.py", path=cu.ENV["PATH"]) or shutil.which("psort", path=cu.ENV["PATH"])
+    # Il pacchetto Debian installa plaso-log2timeline / plaso-psort; pip installa log2timeline(.py) / psort(.py)
+    def find(*names):
+        return next((p for p in (shutil.which(n, path=cu.ENV["PATH"]) for n in names) if p), None)
+    l2t = find("plaso-log2timeline", "log2timeline.py", "log2timeline")
+    psort = find("plaso-psort", "psort.py", "psort")
     if not l2t or not psort:
         fail("Plaso is not installed (sudo apt install plaso)")
     m = cu.load_manifest(eid)
