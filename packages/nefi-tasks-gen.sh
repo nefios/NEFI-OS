@@ -18,12 +18,18 @@ avail() {
   [[ "$out" == *"Candidate: "[0-9]* ]]
 }
 
+# Task gia' spuntati nella "Scelta del software" di una nuova installazione (l'utente puo' toglierli).
+# Il preseed di tasksel/first non serve: con "seen false" tasksel lo sostituisce con i suoi predefiniti,
+# che vengono da Test-new-install ("mark" = mostrato e spuntato, "show" = mostrato).
+MARKED="nefi-desktop-kde nefi-core nefi-default nefi-standard"
+
 # task <nome> <genitore|-> <ordine> <descrizione> <pacchetti...>
 task() {
   local name="$1" parent="$2" rel="$3" desc="$4"; shift 4
   {
     echo "Task: $name"
     if [ "$parent" != "-" ]; then echo "Parent: $parent"; fi
+    if [[ " $MARKED " == *" $name "* ]]; then echo "Test-new-install: mark show"; fi
     echo "Relevance: $rel"
     echo "Section: user"
     echo "Description: $desc"
@@ -67,6 +73,7 @@ task nefi-ai           nefi-tools   24 "ai -- Guardian AI assistant (Ollama engi
 task nefi-ssh          -            30 "SSH server" openssh-server
 cat >> "$DESC" << 'EOF'
 Task: nefi-standard
+Test-new-install: mark show
 Relevance: 40
 Section: user
 Description: standard system utilities
